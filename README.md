@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="apps/web/public/logo/logo-full.png" alt="Sanchaalan Saathi Logo" width="96" />
+<img src="apps/web/public/logo/logo-full.png" alt="Sanchaalan Saathi Logo" height="120" width="120" />
 
 # Sanchaalan Saathi
 
