@@ -15,9 +15,6 @@
 [![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge)](LICENSE)
 
-**Built by Team CrownBreakers — Google International Hackathon**
-
-*Aishwary Srivastava · Eshaan Singla · Sukhmanpreet Singh*
 
 ---
 
@@ -333,20 +330,6 @@ SynapseAI/
 ├── docker-compose.yml
 └── firestore.rules
 ```
-
----
-
-## Team
-
-**Team CrownBreakers** — Google International Hackathon
-
-| Name | Role |
-|---|---|
-| **Aishwary Srivastava** | Full-stack lead · AI pipeline · Graph engine |
-| **Eshaan Singla** | Backend · Matching algorithm · Simulation |
-| **Sukhmanpreet Singh** | Frontend · Volunteer PWA · UX |
-
----
 
 ## License
 
