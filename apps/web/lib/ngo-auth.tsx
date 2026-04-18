@@ -25,11 +25,7 @@ type NGOAuthCtx = {
 
 const Ctx = createContext<NGOAuthCtx>({} as NGOAuthCtx);
 
-const API = process.env.NEXT_PUBLIC_BACKEND_URL ?? (
-  process.env.NODE_ENV === 'production'
-    ? (() => { throw new Error('NEXT_PUBLIC_BACKEND_URL is not set'); })()
-    : 'http://localhost:8000'
-);
+const API = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 function parseToken(token: string): (Omit<NGOUser, "email"> & { email: string }) | null {
   try {
@@ -90,16 +86,44 @@ export function NGOAuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithGoogle = async (role: "ngo_admin" | "volunteer", inviteCode?: string): Promise<NGOUser> => {
     if (!auth) {
-      throw new Error("Firebase auth is not configured. Set NEXT_PUBLIC_FIREBASE_* env vars.");
+      throw new Error("Firebase is not configured. Add NEXT_PUBLIC_FIREBASE_* vars to your environment.");
     }
 
-    const result = await signInWithPopup(auth, new GoogleAuthProvider());
-    const data = await api.googleAuth({
-      email: result.user.email!,
-      firebase_uid: result.user.uid,
-      role,
-      invite_code: inviteCode,
-    });
+    // Step 1: Firebase Google popup
+    let firebaseResult;
+    try {
+      firebaseResult = await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (err: unknown) {
+      const code = (err as { code?: string })?.code ?? "";
+      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+        throw new Error("Sign-in was cancelled.");
+      }
+      if (code === "auth/popup-blocked") {
+        throw new Error("Popup blocked — allow popups for this site and try again.");
+      }
+      if (code === "auth/unauthorized-domain") {
+        throw new Error("This domain is not authorised in Firebase. Add it to Firebase Console → Authentication → Settings → Authorised domains.");
+      }
+      throw new Error((err as Error)?.message ?? "Google sign-in failed.");
+    }
+
+    // Step 2: Exchange Firebase identity with backend for a custom JWT
+    let data;
+    try {
+      data = await api.googleAuth({
+        email: firebaseResult.user.email!,
+        firebase_uid: firebaseResult.user.uid,
+        role,
+        invite_code: inviteCode,
+      });
+    } catch (err: unknown) {
+      const msg = (err as Error)?.message ?? "Backend authentication failed.";
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+        throw new Error("Cannot reach the server. Check NEXT_PUBLIC_BACKEND_URL and ensure the backend is running.");
+      }
+      throw new Error(msg);
+    }
+
     localStorage.setItem("ngo_token", data.token);
     document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`;
     const parsed = parseToken(data.token) as NGOUser;

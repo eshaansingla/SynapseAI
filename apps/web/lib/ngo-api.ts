@@ -1,8 +1,4 @@
-const BASE = process.env.NEXT_PUBLIC_BACKEND_URL ?? (
-  process.env.NODE_ENV === 'production'
-    ? (() => { throw new Error('NEXT_PUBLIC_BACKEND_URL is not set'); })()
-    : 'http://localhost:8000'
-);
+const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 function authHeaders(token: string): HeadersInit {
   return { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
