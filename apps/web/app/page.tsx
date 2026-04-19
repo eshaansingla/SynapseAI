@@ -8,10 +8,66 @@ import {
   Menu, X, ArrowRight, MapPin, Bell, CheckCircle2,
   ChevronRight, Star, TrendingUp, Clock,
 } from "lucide-react";
-import { signInWithGoogle as firebaseSignIn } from "@/lib/firebase-auth";
+import { signInWithGoogle as firebaseSignIn, startGoogleRedirect, getGoogleRedirectResult } from "@/lib/firebase-auth";
 import { api } from "@/lib/ngo-api";
 
 // ── Shared sign-in logic ──────────────────────────────────────────────────────
+
+const BACKEND = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
+/** Exchange a Firebase user for a backend JWT, store it, then navigate. */
+async function exchangeAndRedirect(
+  firebaseUser: { email: string; uid: string },
+  role: "ngo_admin" | "volunteer",
+  inviteCode: string,
+  router: ReturnType<typeof useRouter>,
+  setError: (e: string) => void,
+  setBusy: (b: boolean) => void,
+  setStep: (s: string) => void,
+): Promise<void> {
+  setStep("Setting up your account…");
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const res = await fetch(`${BACKEND}/api/auth/google`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: firebaseUser.email,
+        firebase_uid: firebaseUser.uid,
+        role,
+        invite_code: role === "volunteer" ? inviteCode.trim() || undefined : undefined,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Server error (${res.status})`);
+    }
+    const data: { token: string; role: string; ngo_id: string | null; needs_ngo_setup?: boolean } = await res.json();
+    localStorage.setItem("ngo_token", data.token);
+    document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
+    setStep("Redirecting…");
+    if (data.needs_ngo_setup) router.replace("/ngo/setup");
+    else if (role === "ngo_admin") router.replace("/ngo/dashboard");
+    else router.replace("/vol/dashboard");
+  } catch (e: unknown) {
+    clearTimeout(timeoutId);
+    const err = e as Error;
+    if (err.name === "AbortError") {
+      setError("Server took too long to respond (>20 s). Check your connection and try again.");
+    } else if (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
+      setError("Cannot reach the server. Check your internet connection and try again.");
+    } else if (err.message?.includes("invite_code") || err.message?.includes("Invalid invite code")) {
+      setError("Invalid or expired invite code. Ask your NGO admin for a new one.");
+    } else {
+      setError(err.message || "Account setup failed. Please try again.");
+    }
+    setBusy(false);
+    setStep("");
+  }
+}
 
 async function handleGoogleSignIn(
   role: "ngo_admin" | "volunteer",
@@ -23,22 +79,35 @@ async function handleGoogleSignIn(
 ) {
   setError("");
   setBusy(true);
-
-  // ── Step 1: Firebase popup ────────────────────────────────────────────────
   setStep("Signing in with Google…");
+
   let firebaseUser;
   try {
     firebaseUser = await firebaseSignIn();
   } catch (e: unknown) {
     const code = (e as { code?: string })?.code ?? "";
-    if (code === "auth/popup-closed-by-user") {
-      setError("Sign-in window closed. If this keeps happening, your domain may not be authorised — add it in Firebase Console → Authentication → Settings → Authorised domains.");
-    } else if (code === "auth/cancelled-popup-request" || code === "auth/popup-in-flight") {
-      setError("Sign-in already in progress — please wait a moment.");
-    } else if (code === "auth/popup-blocked") {
-      setError("Popup blocked — allow popups for this site in your browser settings, then retry.");
+    if (
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/popup-blocked" ||
+      code === "auth/cancelled-popup-request"
+    ) {
+      // Browser blocked the popup or closed it (third-party cookie restriction).
+      // Automatically fall back to full-page redirect — no user action needed.
+      setStep("Popup blocked — switching to redirect sign-in…");
+      try {
+        startGoogleRedirect(role, inviteCode);
+        // Page will navigate away; no further action needed here.
+      } catch {
+        setError("Could not start sign-in. Check your internet connection and try again.");
+        setBusy(false);
+        setStep("");
+      }
+      return;
+    }
+    if (code === "auth/popup-in-flight") {
+      setError("Sign-in already in progress — please wait.");
     } else if (code === "auth/unauthorized-domain") {
-      setError("This domain is not authorised in Firebase. Add it under Authentication → Settings → Authorised domains.");
+      setError("This domain is not authorised in Firebase — add it under Authentication → Settings → Authorised domains.");
     } else if (code === "auth/network-request-failed") {
       setError("Network error — check your connection and try again.");
     } else {
@@ -49,57 +118,10 @@ async function handleGoogleSignIn(
     return;
   }
 
-  // ── Step 2: Exchange Firebase identity for backend JWT ────────────────────
-  setStep("Setting up your account…");
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15_000);
-    let data: { token: string; role: string; ngo_id: string | null; needs_ngo_setup?: boolean };
-    try {
-      const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-      const res = await fetch(`${BASE}/api/auth/google`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: firebaseUser.email!,
-          firebase_uid: firebaseUser.uid,
-          role,
-          invite_code: role === "volunteer" ? inviteCode.trim() || undefined : undefined,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Server error (${res.status})`);
-      }
-      data = await res.json();
-    } catch (fetchErr: unknown) {
-      clearTimeout(timeoutId);
-      throw fetchErr;
-    }
-
-    localStorage.setItem("ngo_token", data.token);
-    document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
-
-    setStep("Redirecting…");
-    if (data.needs_ngo_setup) router.replace("/ngo/setup");
-    else if (role === "ngo_admin") router.replace("/ngo/dashboard");
-    else router.replace("/vol/dashboard");
-  } catch (e: unknown) {
-    const err = e as Error;
-    if (err.name === "AbortError") {
-      setError("Server took too long to respond (>15 s). Check your connection and try again.");
-    } else if (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
-      setError("Cannot reach the server. Check your internet connection and try again.");
-    } else if (err.message?.includes("invite_code") || err.message?.includes("Invalid invite code")) {
-      setError("Invalid or expired invite code. Ask your NGO admin for a new one.");
-    } else {
-      setError(err.message || "Account setup failed. Please try again.");
-    }
-    setBusy(false);
-    setStep("");
-  }
+  await exchangeAndRedirect(
+    { email: firebaseUser.email!, uid: firebaseUser.uid },
+    role, inviteCode, router, setError, setBusy, setStep,
+  );
 }
 
 // ── Google icon ───────────────────────────────────────────────────────────────
@@ -341,8 +363,21 @@ export default function LandingPage() {
   // Redirect already-authenticated users immediately on mount
   useEffect(() => {
     const role = readStoredRole();
-    if (role === "ngo_admin") { setRedirecting(true); router.replace("/ngo/dashboard"); }
-    else if (role === "volunteer") { setRedirecting(true); router.replace("/vol/dashboard"); }
+    if (role === "ngo_admin") { setRedirecting(true); router.replace("/ngo/dashboard"); return; }
+    if (role === "volunteer") { setRedirecting(true); router.replace("/vol/dashboard"); return; }
+
+    // Handle return from signInWithRedirect (popup fallback).
+    // getGoogleRedirectResult() resolves quickly with null if no redirect is pending.
+    getGoogleRedirectResult().then((res) => {
+      if (!res) return;
+      setRedirecting(true);
+      const noop = () => {};
+      exchangeAndRedirect(
+        { email: res.user.email!, uid: res.user.uid },
+        res.role, res.inviteCode, router, noop, noop,
+        (s) => { if (s) console.info("[redirect-signin]", s); },
+      );
+    }).catch(() => { /* redirect result error — stay on page */ });
   }, [router]);
 
   useEffect(() => {
