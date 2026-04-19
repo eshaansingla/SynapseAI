@@ -47,8 +47,10 @@ export default function NGODashboardPage() {
   const [copied, setCopied]     = useState(false);
 
   useEffect(() => {
-    if (user && !user.ngo_id) router.replace("/ngo/setup");
-  }, [user, router]);
+    if (authLoading) return;
+    if (!user) { router.replace("/"); return; }
+    if (!user.ngo_id) router.replace("/ngo/setup");
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     if (!user) return;

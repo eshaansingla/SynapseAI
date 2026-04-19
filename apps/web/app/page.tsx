@@ -8,10 +8,8 @@ import {
   Menu, X, ArrowRight, MapPin, Bell, CheckCircle2,
   ChevronRight, Star, TrendingUp, Clock,
 } from "lucide-react";
-import { useAuth } from "@/lib/auth";
-import { signInWithGoogle as firebaseSignIn, logoutUser } from "@/lib/firebase-auth";
+import { signInWithGoogle as firebaseSignIn } from "@/lib/firebase-auth";
 import { api } from "@/lib/ngo-api";
-import UserProfile from "@/components/auth/UserProfile";
 
 // ── Shared sign-in logic ──────────────────────────────────────────────────────
 
@@ -21,39 +19,86 @@ async function handleGoogleSignIn(
   router: ReturnType<typeof useRouter>,
   setError: (e: string) => void,
   setBusy: (b: boolean) => void,
+  setStep: (s: string) => void,
 ) {
   setError("");
   setBusy(true);
+
+  // ── Step 1: Firebase popup ────────────────────────────────────────────────
+  setStep("Signing in with Google…");
+  let firebaseUser;
   try {
-    const firebaseUser = await firebaseSignIn();
-    try {
-      const data = await api.googleAuth({
-        email: firebaseUser.email!,
-        firebase_uid: firebaseUser.uid,
-        role,
-        invite_code: role === "volunteer" ? inviteCode.trim() || undefined : undefined,
-      });
-      localStorage.setItem("ngo_token", data.token);
-      document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
-      if (data.needs_ngo_setup) router.replace("/ngo/setup");
-      else if (role === "ngo_admin") router.replace("/ngo/dashboard");
-      else router.replace("/vol/dashboard");
-    } catch {
-      router.replace(role === "ngo_admin" ? "/ngo/dashboard" : "/vol/dashboard");
-    }
+    firebaseUser = await firebaseSignIn();
   } catch (e: unknown) {
     const code = (e as { code?: string })?.code ?? "";
-    if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
-      setError("Sign-in was cancelled.");
+    if (code === "auth/popup-closed-by-user") {
+      setError("Google sign-in window was closed — click the button to retry.");
+    } else if (code === "auth/cancelled-popup-request" || code === "auth/popup-in-flight") {
+      setError("Sign-in already in progress — please wait a moment.");
     } else if (code === "auth/popup-blocked") {
-      setError("Popup blocked — allow popups for this site and try again.");
+      setError("Popup blocked — allow popups for this site in your browser settings, then retry.");
     } else if (code === "auth/unauthorized-domain") {
       setError("This domain is not authorised in Firebase. Add it under Authentication → Settings → Authorised domains.");
+    } else if (code === "auth/network-request-failed") {
+      setError("Network error — check your connection and try again.");
     } else {
-      setError((e as Error).message || "Sign-in failed. Please try again.");
+      setError((e as Error).message || "Google sign-in failed. Please try again.");
     }
-  } finally {
     setBusy(false);
+    setStep("");
+    return;
+  }
+
+  // ── Step 2: Exchange Firebase identity for backend JWT ────────────────────
+  setStep("Setting up your account…");
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15_000);
+    let data: { token: string; role: string; ngo_id: string | null; needs_ngo_setup?: boolean };
+    try {
+      const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+      const res = await fetch(`${BASE}/api/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: firebaseUser.email!,
+          firebase_uid: firebaseUser.uid,
+          role,
+          invite_code: role === "volunteer" ? inviteCode.trim() || undefined : undefined,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Server error (${res.status})`);
+      }
+      data = await res.json();
+    } catch (fetchErr: unknown) {
+      clearTimeout(timeoutId);
+      throw fetchErr;
+    }
+
+    localStorage.setItem("ngo_token", data.token);
+    document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
+
+    setStep("Redirecting…");
+    if (data.needs_ngo_setup) router.replace("/ngo/setup");
+    else if (role === "ngo_admin") router.replace("/ngo/dashboard");
+    else router.replace("/vol/dashboard");
+  } catch (e: unknown) {
+    const err = e as Error;
+    if (err.name === "AbortError") {
+      setError("Server took too long to respond (>15 s). Check your connection and try again.");
+    } else if (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
+      setError("Cannot reach the server. Check your internet connection and try again.");
+    } else if (err.message?.includes("invite_code") || err.message?.includes("Invalid invite code")) {
+      setError("Invalid or expired invite code. Ask your NGO admin for a new one.");
+    } else {
+      setError(err.message || "Account setup failed. Please try again.");
+    }
+    setBusy(false);
+    setStep("");
   }
 }
 
@@ -93,6 +138,7 @@ function LoginCard({
   const [inviteCode, setInviteCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [step, setStep] = useState("");
 
   const isNgo = role === "ngo_admin";
 
@@ -214,7 +260,7 @@ function LoginCard({
             setError("Enter your invite code before continuing.");
             return;
           }
-          handleGoogleSignIn(role, inviteCode, router, setError, setBusy);
+          handleGoogleSignIn(role, inviteCode, router, setError, setBusy, setStep);
         }}
         disabled={busy}
         whileHover={{ scale: busy ? 1 : 1.015, boxShadow: busy ? undefined : "0 8px 24px rgba(0,0,0,0.35)" }}
@@ -231,11 +277,14 @@ function LoginCard({
         }}
       >
         {busy ? (
-          <div style={{ display: "flex", gap: 5 }}>
-            {[0, 1, 2].map((i) => (
-              <motion.div key={i} animate={{ y: [0, -5, 0] }} transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }}
-                style={{ width: 6, height: 6, borderRadius: 3, background: "#6b7280" }} />
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", gap: 4 }}>
+              {[0, 1, 2].map((i) => (
+                <motion.div key={i} animate={{ y: [0, -5, 0] }} transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.1 }}
+                  style={{ width: 5, height: 5, borderRadius: 3, background: "#6b7280" }} />
+              ))}
+            </div>
+            {step && <span style={{ fontSize: 13, color: "#6b7280" }}>{step}</span>}
           </div>
         ) : (
           <>
@@ -266,18 +315,35 @@ function scrollTo(id: string) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+// Parse ngo_token from localStorage; returns role or null
+function readStoredRole(): "ngo_admin" | "volunteer" | null {
+  try {
+    const token = localStorage.getItem("ngo_token");
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    if (payload.exp && Date.now() / 1000 > payload.exp) {
+      localStorage.removeItem("ngo_token");
+      return null;
+    }
+    return payload.role ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function LandingPage() {
   const router = useRouter();
-  const { user: fbUser, role: userRole, loading } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const loginRef = useRef<HTMLDivElement>(null);
 
+  // Redirect already-authenticated users immediately on mount
   useEffect(() => {
-    if (loading || !fbUser) return;
-    if (userRole === "NGO") router.replace("/ngo/dashboard");
-    else if (userRole === "Volunteer") router.replace("/vol/dashboard");
-  }, [fbUser, userRole, loading, router]);
+    const role = readStoredRole();
+    if (role === "ngo_admin") { setRedirecting(true); router.replace("/ngo/dashboard"); }
+    else if (role === "volunteer") { setRedirecting(true); router.replace("/vol/dashboard"); }
+  }, [router]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -285,7 +351,7 @@ export default function LandingPage() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  if (loading) {
+  if (redirecting) {
     return (
       <div style={{ minHeight: "100vh", background: "#0B3D36", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ display: "flex", gap: 6 }}>
@@ -294,24 +360,6 @@ export default function LandingPage() {
               style={{ width: 8, height: 8, borderRadius: 4, background: "#48A15E" }} />
           ))}
         </div>
-      </div>
-    );
-  }
-
-  if (fbUser) {
-    return (
-      <div style={{ minHeight: "100vh", background: "radial-gradient(ellipse at 30% 0%, #1a5e52 0%, #0B3D36 50%, #072921 100%)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          style={{ width: "100%", maxWidth: 420, background: "rgba(255,255,255,0.06)", backdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: "28px 32px", boxShadow: "0 32px 72px rgba(0,0,0,0.45)" }}
-        >
-          <UserProfile user={fbUser} onLogout={logoutUser} />
-          <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, textAlign: "center", marginTop: 18 }}>
-            Redirecting to your dashboard…
-          </p>
-        </motion.div>
       </div>
     );
   }

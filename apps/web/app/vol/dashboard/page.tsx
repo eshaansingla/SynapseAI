@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { ClipboardList, CheckCircle, Clock, AlertCircle, Loader2, CheckCheck, XCircle, Sparkles, Star } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useRouter } from "next/navigation";
 import { api, RecommendedTask } from "../../../lib/ngo-api";
 import { useNGOAuth } from "../../../lib/ngo-auth";
 
@@ -35,6 +36,7 @@ const STAT_LABELS = ["Assigned Tasks", "Completed", "Upcoming Deadlines"];
 
 export default function VolDashboardPage() {
   const { user, loading: authLoading } = useNGOAuth();
+  const router = useRouter();
   const [data, setData]         = useState<DashData | null>(null);
   const [recs, setRecs]         = useState<RecommendedTask[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -53,7 +55,11 @@ export default function VolDashboardPage() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { router.replace("/"); return; }
+    load();
+  }, [user, authLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const respond = async (id: string, action: "accept" | "reject") => {
     if (!user) return;

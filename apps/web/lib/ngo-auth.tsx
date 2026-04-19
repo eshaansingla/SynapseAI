@@ -1,9 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
-import { auth } from "./firebase";
 import { api } from "./ngo-api";
+import { signInWithGoogle as firebaseSignInWithGoogle } from "./firebase-auth";
 
 export type NGOUser = {
   user_id: string;
@@ -85,25 +84,17 @@ export function NGOAuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginWithGoogle = async (role: "ngo_admin" | "volunteer", inviteCode?: string): Promise<NGOUser> => {
-    if (!auth) {
-      throw new Error("Firebase is not configured. Add NEXT_PUBLIC_FIREBASE_* vars to your environment.");
-    }
-
-    // Step 1: Firebase Google popup
-    let firebaseResult;
+    // Step 1: Firebase Google popup (mutex-protected, forces account picker)
+    let firebaseUser;
     try {
-      firebaseResult = await signInWithPopup(auth, new GoogleAuthProvider());
+      firebaseUser = await firebaseSignInWithGoogle();
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code ?? "";
-      if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
-        throw new Error("Sign-in was cancelled.");
-      }
-      if (code === "auth/popup-blocked") {
-        throw new Error("Popup blocked — allow popups for this site and try again.");
-      }
-      if (code === "auth/unauthorized-domain") {
-        throw new Error("This domain is not authorised in Firebase. Add it to Firebase Console → Authentication → Settings → Authorised domains.");
-      }
+      if (code === "auth/popup-closed-by-user") throw new Error("Google sign-in window was closed. Please try again.");
+      if (code === "auth/cancelled-popup-request") throw new Error("Another sign-in is in progress. Please wait and try again.");
+      if (code === "auth/popup-in-flight") throw new Error("Sign-in already in progress — please wait.");
+      if (code === "auth/popup-blocked") throw new Error("Popup blocked — allow popups for this site and try again.");
+      if (code === "auth/unauthorized-domain") throw new Error("This domain is not authorised in Firebase. Add it to Firebase Console → Authentication → Settings → Authorised domains.");
       throw new Error((err as Error)?.message ?? "Google sign-in failed.");
     }
 
@@ -111,8 +102,8 @@ export function NGOAuthProvider({ children }: { children: React.ReactNode }) {
     let data;
     try {
       data = await api.googleAuth({
-        email: firebaseResult.user.email!,
-        firebase_uid: firebaseResult.user.uid,
+        email: firebaseUser.email!,
+        firebase_uid: firebaseUser.uid,
         role,
         invite_code: inviteCode,
       });
