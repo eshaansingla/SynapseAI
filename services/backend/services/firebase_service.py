@@ -9,57 +9,81 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+def _try_parse(candidate: str) -> dict | None:
+    """Try multiple JSON repair strategies on a single string candidate."""
+    attempts = [
+        candidate,
+        candidate.replace("\\\\n", "\\n"),                          # double-escaped newlines
+        candidate.replace("\r\n", "\\n").replace("\r", "\\n"),      # literal CRLF inside value
+        candidate.replace("\n", "\\n"),                              # literal LF inside value
+    ]
+    for s in attempts:
+        try:
+            result = json.loads(s)
+            if isinstance(result, dict):
+                return result
+        except (json.JSONDecodeError, ValueError):
+            pass
+    return None
+
+
 def _parse_service_account_json(raw: str) -> dict | None:
     """
     Robustly parse FIREBASE_SERVICE_ACCOUNT_JSON from Render / Railway / Vercel.
 
-    Platforms differ in how they store the value:
-      1. Valid JSON pasted directly                → json.loads() works
-      2. JSON with double-escaped newlines         → replace \\n → \n in private_key
-      3. Base64-encoded JSON                       → base64 decode first
-      4. JSON wrapped in single quotes             → strip outer quotes
-
-    Returns the parsed dict or None on failure.
+    Strategies tried in order:
+      1. Raw value directly
+      2. Strip surrounding quotes
+      3. Strip all surrounding whitespace
+      4. Base64 standard decode  (handles standard + URL-safe + missing padding)
+      5. Each candidate also gets double-escape repair and CRLF repair
     """
-    candidates = [raw]
+    # Build candidate strings to try
+    candidates: list[str] = []
 
-    # Strip surrounding single or double quotes added by some platforms
-    stripped = raw.strip().strip("'\"")
-    if stripped != raw:
+    # 1. Raw as-is
+    candidates.append(raw)
+
+    # 2. Strip outer whitespace
+    stripped = raw.strip()
+    if stripped not in candidates:
         candidates.append(stripped)
 
-    # Try base64 decode
-    try:
-        decoded = base64.b64decode(raw).decode("utf-8")
-        candidates.append(decoded)
-    except Exception:
-        pass
+    # 3. Strip outer quotes (some platforms wrap in single/double quotes)
+    unquoted = stripped.strip("'\"")
+    if unquoted not in candidates:
+        candidates.append(unquoted)
 
-    for candidate in candidates:
-        # Attempt 1: direct parse
-        try:
-            return json.loads(candidate)
-        except json.JSONDecodeError:
-            pass
+    # 4. Base64 variants — try standard, URL-safe, and with re-padded value
+    for b64_input in {raw.strip(), unquoted}:
+        for altchars in (None, b"-_"):          # standard vs URL-safe
+            for pad in ("", "=", "==", "==="):  # fix missing padding
+                try:
+                    padded = b64_input + pad
+                    decoded = (
+                        base64.b64decode(padded, altchars=altchars)
+                        if altchars
+                        else base64.b64decode(padded)
+                    )
+                    text = decoded.decode("utf-8")
+                    if text not in candidates:
+                        candidates.append(text)
+                    break  # padding worked — no need to try more padding
+                except Exception:
+                    continue
 
-        # Attempt 2: fix double-escaped newlines in private_key
-        # Render sometimes stores \n as the two characters \ and n
-        try:
-            fixed = candidate.replace("\\\\n", "\\n")
-            result = json.loads(fixed)
+    # Try every candidate through every JSON repair strategy
+    for i, candidate in enumerate(candidates):
+        result = _try_parse(candidate)
+        if result is not None:
+            logger.info(f"FIREBASE_SERVICE_ACCOUNT_JSON parsed via candidate[{i}]")
             return result
-        except json.JSONDecodeError:
-            pass
 
-        # Attempt 3: replace literal \n outside JSON string context
-        # (env var pasted with real newlines replaced by spaces)
-        try:
-            fixed = candidate.replace("\r\n", "\\n").replace("\r", "\\n")
-            result = json.loads(fixed)
-            return result
-        except json.JSONDecodeError:
-            pass
-
+    # Diagnostic: log first 120 chars and length to help diagnose format issues
+    logger.error(
+        f"FIREBASE_SERVICE_ACCOUNT_JSON parse failed. "
+        f"len={len(raw)}, first_chars={repr(raw[:120])}"
+    )
     return None
 
 
