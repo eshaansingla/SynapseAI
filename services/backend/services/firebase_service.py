@@ -6,6 +6,10 @@ import json
 import base64
 import logging
 from datetime import datetime
+try:
+    import yaml as _yaml
+except ImportError:
+    _yaml = None
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +30,27 @@ def _try_parse(candidate: str) -> dict | None:
         except (json.JSONDecodeError, ValueError):
             pass
 
-    # Fallback: Python dict literal format (keys/values without quotes).
-    # Happens when service account is copy-pasted via str(dict) instead of json.dumps().
+    # Fallback: Python dict literal (quoted keys/values, valid Python literal syntax)
     try:
         result = ast.literal_eval(candidate)
         if isinstance(result, dict):
             return result
     except Exception:
         pass
+
+    # Fallback: YAML flow style — handles {type: service_account, ...} with unquoted keys/values.
+    # This format appears when the service account is copied from Python repr or pasted as YAML.
+    if _yaml is not None:
+        try:
+            result = _yaml.safe_load(candidate)
+            if isinstance(result, dict) and "private_key" in result:
+                # YAML parses \n as literal backslash-n in unquoted scalars; fix private_key
+                pk = result.get("private_key", "")
+                if isinstance(pk, str) and "\\n" in pk:
+                    result["private_key"] = pk.replace("\\n", "\n")
+                return result
+        except Exception:
+            pass
 
     return None
 
