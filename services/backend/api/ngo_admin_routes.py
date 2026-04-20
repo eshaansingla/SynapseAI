@@ -143,8 +143,10 @@ async def list_volunteers(
         if skill and skill.lower() not in [s.lower() for s in (p.skills or [])]:
             continue
         result.append({
+            "id":           u.id,
             "user_id":      u.id,
             "email":        u.email,
+            "full_name":    p.full_name,
             "skills":       p.skills,
             "availability": p.availability,
             "status":       p.status,

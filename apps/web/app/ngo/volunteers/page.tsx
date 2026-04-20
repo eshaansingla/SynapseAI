@@ -15,6 +15,16 @@ type Volunteer = {
   status: "active" | "inactive";
 };
 
+type VolunteerRaw = {
+  id?: unknown;
+  user_id?: unknown;
+  email?: unknown;
+  full_name?: unknown;
+  skills?: unknown;
+  availability?: unknown;
+  status?: unknown;
+};
+
 type RankedVol = {
   volunteer_id: string;
   name: string;
@@ -34,6 +44,30 @@ function emailToInitials(email: string): string {
   const parts = local.split(/[._-]/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return local.slice(0, 2).toUpperCase();
+}
+
+function normalizeVolunteer(raw: VolunteerRaw): Volunteer {
+  const rawId = typeof raw.id === "string" ? raw.id : (typeof raw.user_id === "string" ? raw.user_id : "");
+  const email = typeof raw.email === "string" && raw.email.trim() ? raw.email : "unknown@volunteer.local";
+  const skills = Array.isArray(raw.skills)
+    ? raw.skills.filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    : [];
+
+  const availability: Record<string, boolean> = {};
+  if (raw.availability && typeof raw.availability === "object") {
+    for (const day of DAYS) {
+      availability[day] = Boolean((raw.availability as Record<string, unknown>)[day]);
+    }
+  }
+
+  return {
+    id: rawId,
+    email,
+    full_name: typeof raw.full_name === "string" ? raw.full_name : undefined,
+    skills,
+    availability,
+    status: raw.status === "inactive" ? "inactive" : "active",
+  };
 }
 
 type SortKey = "name" | "skills" | "availability";
@@ -60,7 +94,13 @@ export default function VolunteersPage() {
       api.ngoVolunteers(user.token),
       api.ngoTasks(user.token, { status: "open" }),
     ])
-      .then(([vols, tsks]) => { setVolunteers(vols as Volunteer[]); setTasks(tsks as Task[]); })
+      .then(([vols, tsks]) => {
+        const normalized = Array.isArray(vols)
+          ? (vols as VolunteerRaw[]).map((v) => normalizeVolunteer(v))
+          : [];
+        setVolunteers(normalized);
+        setTasks(tsks as Task[]);
+      })
       .catch((e) => setError(friendlyError(e)))
       .finally(() => setLoading(false));
   }, [user]);
@@ -218,9 +258,12 @@ export default function VolunteersPage() {
           {filtered.map((v, i) => {
             const initials = emailToInitials(v.email);
             const availDays = DAYS.filter((d) => v.availability?.[d]).length;
+            const displayId = v.id ? `${v.id.slice(0, 8)}...` : "unknown";
+            const rowKey = v.id || `${v.email}-${i}`;
+            const canDeactivate = Boolean(v.id);
             return (
               <motion.div
-                key={v.id}
+                key={rowKey}
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
                 whileHover={{ y: -3, boxShadow: "0 12px 32px rgba(42,130,86,0.12)", borderColor: "#95C78F" }}
                 className="rounded-2xl border border-gray-200 p-4 space-y-3"
@@ -236,7 +279,7 @@ export default function VolunteersPage() {
                   <div className="flex-1 min-w-0">
                     {v.full_name && <p className="text-xs font-bold text-gray-800 truncate">{v.full_name}</p>}
                     <p className="text-[11px] text-gray-500 truncate">{v.email}</p>
-                    <p className="text-[9px] text-gray-300 font-mono mt-0.5">{v.id.slice(0, 8)}…</p>
+                    <p className="text-[9px] text-gray-300 font-mono mt-0.5">{displayId}</p>
                   </div>
                   <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                     v.status === "active"
@@ -285,7 +328,7 @@ export default function VolunteersPage() {
                   <p className="text-[10px] text-gray-400">{availDays}d/wk</p>
                 </div>
 
-                {v.status === "active" && (
+                {v.status === "active" && canDeactivate && (
                   <button
                     onClick={() => handleDeactivate(v.id)}
                     disabled={deactivating === v.id}
