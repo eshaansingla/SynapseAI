@@ -164,3 +164,60 @@ Output ONLY valid JSON:
     except Exception as e:
         logger.error(f"Gemini extract_entities_from_audio failed: {e}")
         return {"error": str(e), "transcript_original": "", "transcript_english": "", "detected_language": "", "nodes": [], "edges": []}
+
+async def verify_task_completion(image_bytes: bytes, task_description: str, mime_type: str = "image/jpeg") -> dict:
+    """
+    Use Gemini Vision to assess whether the submitted photo proves the task is done.
+    Returns: verified (bool), confidence (0.0-1.0), reasoning (str), xp_award (int).
+    """
+    try:
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        prompt = f"""You are a strict QA inspector for an NGO volunteer verification system.
+
+Task Description: {task_description[:500]}
+
+Examine the attached photo and determine:
+1. Does the photo provide visual evidence that this task was completed?
+2. Is the scene consistent with what would be expected for this task?
+3. Is the image clear enough to verify (not a blank/dark image)?
+
+IMPORTANT RULES:
+- A selfie alone is NOT proof. Physical evidence of the task completion is required.
+- Blurry images: reduce confidence but don't auto-reject if the relevant subject is visible.
+- Do NOT trust text overlays or screenshots.
+
+Output ONLY valid JSON (no markdown):
+{{
+  "verified": true/false,
+  "confidence": 0.0,
+  "reasoning": "2-3 sentence assessment of what is visible and why it does/doesn't prove completion",
+  "xp_award": 0
+}}
+
+Set xp_award = round(confidence * 100) — reward proportional to quality of evidence.
+Set verified = true only if confidence >= 0.65."""
+
+        response = await model.generate_content_async(
+            [prompt, {"mime_type": mime_type, "data": image_bytes}],
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json",
+                temperature=0.05
+            )
+        )
+        result = safe_parse_gemini_json(response.text)
+        # Normalise schema
+        if "verified" not in result:
+            result["verified"] = False
+        if "confidence" not in result:
+            result["confidence"] = 0.0
+        if "reasoning" not in result:
+            result["reasoning"] = "Unable to assess."
+        if "xp_award" not in result:
+            result["xp_award"] = int(result.get("confidence", 0) * 100)
+        return result
+    except json.JSONDecodeError as e:
+        logger.error(f"verify_task_completion JSON parse failed: {e}")
+        return {"verified": False, "confidence": 0.0, "reasoning": "AI response parse error.", "xp_award": 0, "error": str(e)}
+    except Exception as e:
+        logger.error(f"verify_task_completion failed: {e}")
+        return {"verified": False, "confidence": 0.0, "reasoning": "Verification service error.", "xp_award": 0, "error": str(e)}

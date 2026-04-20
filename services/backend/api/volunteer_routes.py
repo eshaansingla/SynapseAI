@@ -256,3 +256,67 @@ async def get_volunteer_stats(volunteer_id: str):
     except Exception as e:
         logger.error(f"get_volunteer_stats failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch volunteer stats")
+
+@router.get("/leaderboard/top")
+async def get_leaderboard(limit: int = Query(20, le=100)):
+    """
+    XP leaderboard — top volunteers ranked by totalXP (from Neo4j knowledge graph).
+    Used by the volunteer leaderboard page and the coordinator dashboard.
+    """
+    try:
+        cypher = """
+        MATCH (v:Volunteer)
+        OPTIONAL MATCH (v)-[:HAS_SKILL]->(s:Skill)
+        RETURN
+            v.id                    AS id,
+            v.name                  AS name,
+            v.totalXP               AS xp,
+            v.totalTasksCompleted   AS tasks_completed,
+            v.reputationScore       AS reputation,
+            v.availabilityStatus    AS status,
+            collect(DISTINCT s.name) AS skills
+        ORDER BY xp DESC
+        LIMIT $limit
+        """
+        results = await neo4j_service.run_query(cypher, {"limit": limit})
+
+        # Compute level and badges
+        XP_THRESHOLDS = [0, 100, 250, 500, 1000, 2000, 3500, 5000]
+
+        def xp_to_level(xp: int) -> int:
+            level = 0
+            for i, threshold in enumerate(XP_THRESHOLDS):
+                if (xp or 0) >= threshold:
+                    level = i + 1
+            return min(level, len(XP_THRESHOLDS))
+
+        def compute_badges(tasks: int, xp: int) -> list:
+            badges = []
+            if (tasks or 0) >= 1:  badges.append("first_mission")
+            if (tasks or 0) >= 5:  badges.append("veteran")
+            if (tasks or 0) >= 20: badges.append("elite")
+            if (xp or 0) >= 500:   badges.append("xp_hunter")
+            if (tasks or 0) >= 50: badges.append("legend")
+            return badges
+
+        leaderboard = []
+        for i, r in enumerate(results):
+            xp = r.get("xp") or 0
+            tasks = r.get("tasks_completed") or 0
+            leaderboard.append({
+                "rank": i + 1,
+                "id": r.get("id"),
+                "name": r.get("name", "Anonymous"),
+                "xp": xp,
+                "level": xp_to_level(xp),
+                "tasks_completed": tasks,
+                "reputation": r.get("reputation") or 0,
+                "status": r.get("status", "ACTIVE"),
+                "skills": r.get("skills", []),
+                "badges": compute_badges(tasks, xp),
+            })
+
+        return {"leaderboard": leaderboard, "count": len(leaderboard)}
+    except Exception as e:
+        logger.error(f"get_leaderboard failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch leaderboard")

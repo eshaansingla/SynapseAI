@@ -24,10 +24,22 @@ async def compute_optimal_matches() -> dict:
     try:
         # 1. Fetch data with skills and locations
         vols = await neo4j_service.run_query(
-            "MATCH (v:Volunteer {availabilityStatus: 'ACTIVE'}) OPTIONAL MATCH (v)-[:HAS_SKILL]->(s:Skill) RETURN v, collect(s.name) as skills"
+            """
+            MATCH (v:Volunteer)
+            WHERE v.availabilityStatus = 'ACTIVE' OR v.availability_status = 'ACTIVE'
+            OPTIONAL MATCH (v)-[:HAS_SKILL]->(s:Skill)
+            OPTIONAL MATCH (v)-[:LOCATED_IN]->(l:Location)
+            RETURN v, collect(s.name) as skills, l
+            """
         )
         needs = await neo4j_service.run_query(
-            "MATCH (n:Need {status: 'PENDING'}) MATCH (n)-[:LOCATED_IN]->(l:Location) OPTIONAL MATCH (n)-[:REQUIRES_SKILL]->(s:Skill) RETURN n, l, collect(s.name) as required_skills"
+            """
+            MATCH (n:Need)
+            WHERE n.status = 'PENDING'
+            OPTIONAL MATCH (n)-[:LOCATED_IN]->(l:Location)
+            OPTIONAL MATCH (n)-[:REQUIRES_SKILL]->(s:Skill)
+            RETURN n, l, collect(s.name) as required_skills
+            """
         )
         
         if not vols or not needs:
@@ -42,8 +54,9 @@ async def compute_optimal_matches() -> dict:
         for i, v_rec in enumerate(vols):
             v = v_rec["v"]
             v_skills = v_rec["skills"]
-            v_lat = v.get("lat", 28.6139) # Default to Delhi if missing
-            v_lng = v.get("lng", 77.2090)
+            l = v_rec.get("l") or {}
+            v_lat = v.get("lat") or l.get("lat") or 19.0530  # Default to Mumbai
+            v_lng = v.get("lng") or l.get("lng") or 72.8543
             
             for j, n_rec in enumerate(needs):
                 n = n_rec["n"]
@@ -65,8 +78,8 @@ async def compute_optimal_matches() -> dict:
                 dist = haversine(v_lat, v_lng, n_lat, n_lng)
                 cost += dist * 2.0 # 2 points per km
                 
-                # 3. Reputation Bonus
-                rep = v.get("reputation_score", 50)
+                # 3. Reputation Bonus (camelCase robustness)
+                rep = v.get("reputationScore") or v.get("reputation_score") or 50
                 cost -= rep * 0.1
                 
                 cost_matrix[i][j] = max(cost, 0.0)
