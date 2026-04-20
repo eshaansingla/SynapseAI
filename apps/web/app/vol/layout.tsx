@@ -7,6 +7,7 @@ import { LayoutDashboard, User, Bell, BarChart2, LogOut, PanelLeftClose, PanelLe
 import { motion } from "motion/react";
 import { NGOAuthProvider, useNGOAuth } from "../../lib/ngo-auth";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
+import { ChatbotWidget } from "../../components/ui/ChatbotWidget";
 
 const NAV_ITEMS = [
   { href: "/vol/dashboard",     icon: LayoutDashboard, label: "Dashboard",     sub: "Tasks & overview"      },
@@ -122,7 +123,7 @@ function VolLayoutInner({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#0B3D36" }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--content-bg)" }}>
       <VolSidebar collapsed={collapsed} setCollapsed={setCollapsed} />
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -172,7 +173,7 @@ function VolLayoutInner({ children }: { children: React.ReactNode }) {
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto pb-16 md:pb-0 custom-scrollbar" style={{ background: "#0B3D36" }}>
+        <div className="flex-1 overflow-y-auto pb-16 md:pb-0 custom-scrollbar" style={{ background: "var(--content-bg)" }}>
           {children}
         </div>
 
@@ -196,6 +197,7 @@ function VolLayoutInner({ children }: { children: React.ReactNode }) {
           })}
         </nav>
       </div>
+      <ChatbotWidget />
     </div>
   );
 }
