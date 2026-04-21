@@ -178,7 +178,7 @@ function VolLayoutInner({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Mobile bottom nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around py-1.5 z-50 shadow-[0_-2px_16px_rgba(0,0,0,0.07)]">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-[#122622] border-t border-gray-200 dark:border-white/10 flex justify-around py-1.5 z-50 shadow-[0_-2px_16px_rgba(0,0,0,0.07)]">
           {NAV_ITEMS.map(({ href, icon: Icon, label }) => {
             const isActive = pathname === href || pathname?.startsWith(href + "/");
             return (

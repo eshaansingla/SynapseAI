@@ -37,7 +37,7 @@ export default function SelectRolePage() {
   // Show spinner only while the initial auth check is running
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F6F1] dark:bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-[#F5F6F1] dark:bg-[#072921] flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-[#115E54] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -47,7 +47,7 @@ export default function SelectRolePage() {
   if (!user || role !== null) return null;
 
   return (
-    <div className="min-h-screen bg-[#F5F6F1] dark:bg-gray-950 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#F5F6F1] dark:bg-[#072921] flex flex-col items-center justify-center p-6 relative overflow-hidden">
       <div className="pointer-events-none absolute top-[-20%] right-[-15%] w-[55%] h-[55%] rounded-full bg-[#115E54]/6 dark:bg-[#115E54]/10 blur-3xl" />
       <div className="pointer-events-none absolute bottom-[-20%] left-[-15%] w-[55%] h-[55%] rounded-full bg-[#48A15E]/6 dark:bg-[#48A15E]/8 blur-3xl" />
 
@@ -84,7 +84,7 @@ export default function SelectRolePage() {
           <button
             onClick={() => handleSelect("NGO")}
             disabled={selecting}
-            className="w-full bg-white dark:bg-gray-900 hover:bg-[#115E54]/5 dark:hover:bg-[#115E54]/10 border border-gray-200 dark:border-gray-800 hover:border-[#115E54]/30 dark:hover:border-[#115E54]/40 rounded-2xl p-5 flex items-center gap-4 transition-all shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-white dark:bg-[#122622] hover:bg-[#115E54]/5 dark:hover:bg-[#115E54]/10 border border-gray-200 dark:border-white/10 hover:border-[#115E54]/30 dark:hover:border-[#115E54]/40 rounded-2xl p-5 flex items-center gap-4 transition-all shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="w-12 h-12 rounded-xl bg-[#115E54]/10 dark:bg-[#115E54]/20 flex items-center justify-center shrink-0">
               <Building2 size={22} className="text-[#115E54]" />
@@ -98,7 +98,7 @@ export default function SelectRolePage() {
           <button
             onClick={() => handleSelect("Volunteer")}
             disabled={selecting}
-            className="w-full bg-white dark:bg-gray-900 hover:bg-[#48A15E]/5 dark:hover:bg-[#48A15E]/10 border border-gray-200 dark:border-gray-800 hover:border-[#48A15E]/30 dark:hover:border-[#48A15E]/40 rounded-2xl p-5 flex items-center gap-4 transition-all shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-white dark:bg-[#122622] hover:bg-[#48A15E]/5 dark:hover:bg-[#48A15E]/10 border border-gray-200 dark:border-white/10 hover:border-[#48A15E]/30 dark:hover:border-[#48A15E]/40 rounded-2xl p-5 flex items-center gap-4 transition-all shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <div className="w-12 h-12 rounded-xl bg-[#48A15E]/10 dark:bg-[#48A15E]/20 flex items-center justify-center shrink-0">
               <Users size={22} className="text-[#48A15E]" />

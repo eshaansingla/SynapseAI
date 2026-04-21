@@ -76,7 +76,7 @@ export default function NGOLoginPage() {
   // Show full-screen spinner only during initial auth load or after triggering redirect
   if (loading || redirecting) {
     return (
-      <div className="min-h-screen bg-[#F5F6F1] dark:bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-[#F5F6F1] dark:bg-[#072921] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-4 border-[#115E54] border-t-transparent rounded-full animate-spin" />
           <p className="text-xs text-gray-400 dark:text-gray-500">Setting up your account…</p>
@@ -86,7 +86,7 @@ export default function NGOLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F6F1] dark:bg-gray-950 flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-[#F5F6F1] dark:bg-[#072921] flex flex-col relative overflow-hidden">
 
       {/* Ambient glows */}
       <div className="pointer-events-none absolute top-[-15%] right-[-10%] w-[50%] h-[50%] rounded-full bg-[#115E54]/8 dark:bg-[#115E54]/12 blur-3xl" />
@@ -132,7 +132,7 @@ export default function NGOLoginPage() {
 
           {/* Right — login card */}
           <div className="animate-slide-up delay-100">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 shadow-sm border border-gray-200 dark:border-gray-800 flex flex-col gap-5">
+            <div className="bg-white dark:bg-[#122622] rounded-2xl p-8 shadow-sm border border-gray-200 dark:border-white/10 flex flex-col gap-5">
               <div className="text-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo/logo-icon.png" alt="logo" className="h-10 w-10 mx-auto mb-3 object-contain" />
@@ -142,7 +142,7 @@ export default function NGOLoginPage() {
                 </p>
               </div>
 
-              <div className="h-px bg-gray-100 dark:bg-gray-800" />
+              <div className="h-px bg-gray-100 dark:bg-[#0a2019]" />
 
               {setupError && (
                 <div className="flex items-start gap-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-xl p-3 text-xs text-red-700 dark:text-red-400">
@@ -154,7 +154,7 @@ export default function NGOLoginPage() {
               <button
                 onClick={handleLogin}
                 disabled={signingIn}
-                className="w-full flex items-center justify-center gap-3 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold py-3 px-6 rounded-xl border border-gray-300 dark:border-gray-700 transition-all shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-3 bg-white dark:bg-[#0a2019] hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 font-semibold py-3 px-6 rounded-xl border border-gray-300 dark:border-white/15 transition-all shadow-sm hover:shadow-md active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {signingIn ? (
                   <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin shrink-0" />

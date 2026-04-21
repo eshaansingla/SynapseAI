@@ -101,15 +101,16 @@ export default function NGODashboardPage() {
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl px-4 py-3 flex items-center justify-between"
-          style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
+          className="rounded-xl px-4 py-3 flex items-center justify-between border"
+          style={{ background: "rgba(17,94,84,0.08)", borderColor: "rgba(17,94,84,0.2)" }}
         >
           <div>
-            <p className="text-xs font-semibold text-[#95C78F]">Your NGO Invite Code</p>
-            <p className="text-xs text-white/40 mt-0.5">Share with volunteers to join your organization</p>
+            <p className="text-xs font-semibold" style={{ color: "#115E54" }}>Your NGO Invite Code</p>
+            <p className="text-xs mt-0.5 text-gray-500">Share with volunteers to join your organization</p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-base font-bold tracking-widest text-white select-all rounded-lg px-3 py-1.5" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)" }}>
+            <span className="font-mono text-sm font-bold tracking-widest select-all rounded-lg px-3 py-1.5 border"
+              style={{ background: "rgba(17,94,84,0.1)", borderColor: "rgba(17,94,84,0.25)", color: "var(--text-primary)" }}>
               {data.invite_code}
             </span>
             <button
@@ -119,7 +120,9 @@ export default function NGODashboardPage() {
                 setTimeout(() => setCopied(false), 2000);
               }}
               className="flex items-center gap-1.5 text-xs font-semibold rounded-lg px-3 py-1.5 transition-all"
-              style={{ background: copied ? "rgba(52,211,153,0.15)" : "rgba(255,255,255,0.08)", border: copied ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(255,255,255,0.15)", color: copied ? "#6ee7b7" : "rgba(255,255,255,0.6)" }}
+              style={copied
+                ? { background: "rgba(52,211,153,0.15)", border: "1px solid rgba(52,211,153,0.4)", color: "#059669" }
+                : { background: "rgba(17,94,84,0.1)", border: "1px solid rgba(17,94,84,0.2)", color: "#115E54" }}
             >
               {copied ? <Check size={12} /> : <ClipboardCopy size={12} />}
               {copied ? "Copied!" : "Copy"}

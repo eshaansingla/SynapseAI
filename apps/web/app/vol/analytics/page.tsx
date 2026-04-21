@@ -190,7 +190,7 @@ export default function VolAnalyticsPage() {
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Sparkles size={13} className="text-[#48A15E]" />
-          <h2 className="text-sm font-semibold text-white/80">AI Task Recommendations</h2>
+          <h2 className="text-sm font-semibold text-gray-700">AI Task Recommendations</h2>
         </div>
         {recs.length === 0 ? (
           <motion.div
@@ -248,7 +248,7 @@ export default function VolAnalyticsPage() {
       {/* Task history */}
       {tasks.length > 0 && (
         <div>
-          <h2 className="text-sm font-semibold text-white/80 mb-3">Task History</h2>
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Task History</h2>
           <motion.div
             whileHover={{ y: -2, boxShadow: "0 12px 32px rgba(42,130,86,0.12)", borderColor: "#95C78F" }}
             className="rounded-2xl border border-gray-200 overflow-hidden"
