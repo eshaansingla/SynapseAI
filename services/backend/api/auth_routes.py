@@ -8,9 +8,11 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
+from datetime import datetime
 
+from api.schemas import AuthResponse
 from db.base import get_db
-from db.models import User, NGO, VolunteerProfile
+from db.models import User, NGO, VolunteerProfile, ConsentEvent
 from utils.auth_utils import hash_password, verify_password, create_token
 from middleware.rbac import get_current_user, CurrentUser
 
@@ -28,11 +30,31 @@ class SignupReq(BaseModel):
     password:    str = Field(..., min_length=8, max_length=128)
     role:        str = Field(..., pattern="^(ngo_admin|volunteer)$")
     invite_code: str | None = None
+    full_name:   str | None = Field(None, max_length=200)
+    phone:       str | None = Field(None, max_length=30)
+    city:        str | None = Field(None, max_length=100)
+    preferred_language: str = Field("en", max_length=32)
+    communication_opt_in: bool = True
+    consent_analytics: bool = True
+    consent_personalization: bool = True
+    consent_ai_training: bool = False
+    motivation_statement: str | None = Field(None, max_length=2000)
+    languages: list[str] = Field(default_factory=list)
+    causes_supported: list[str] = Field(default_factory=list)
+    education_level: str | None = Field(None, max_length=80)
+    years_experience: int | None = Field(None, ge=0, le=80)
 
 
 class NGOCreateReq(BaseModel):
     name:        str = Field(..., min_length=2, max_length=200)
     description: str = Field("", max_length=1000)
+    sector:      str | None = Field(None, max_length=120)
+    website:     str | None = Field(None, max_length=300)
+    headquarters_city: str | None = Field(None, max_length=120)
+    primary_contact_name: str | None = Field(None, max_length=200)
+    primary_contact_phone: str | None = Field(None, max_length=30)
+    operating_regions: list[str] = Field(default_factory=list)
+    mission_focus: list[str] = Field(default_factory=list)
 
 
 class LoginReq(BaseModel):
@@ -45,11 +67,30 @@ class GoogleAuthReq(BaseModel):
     firebase_uid: str
     role:         str = Field(..., pattern="^(ngo_admin|volunteer)$")
     invite_code:  str | None = None
+    full_name:   str | None = Field(None, max_length=200)
+    phone:       str | None = Field(None, max_length=30)
+    city:        str | None = Field(None, max_length=100)
+    preferred_language: str = Field("en", max_length=32)
+    communication_opt_in: bool = True
+    consent_analytics: bool = True
+    consent_personalization: bool = True
+    consent_ai_training: bool = False
+    motivation_statement: str | None = Field(None, max_length=2000)
+    languages: list[str] = Field(default_factory=list)
+    causes_supported: list[str] = Field(default_factory=list)
+    education_level: str | None = Field(None, max_length=80)
+    years_experience: int | None = Field(None, ge=0, le=80)
+
+
+def _record_consent_events(user_id: str, req: SignupReq | GoogleAuthReq, db: AsyncSession) -> None:
+    db.add(ConsentEvent(user_id=user_id, scope="analytics", granted=req.consent_analytics, source="signup"))
+    db.add(ConsentEvent(user_id=user_id, scope="personalization", granted=req.consent_personalization, source="signup"))
+    db.add(ConsentEvent(user_id=user_id, scope="ai_training", granted=req.consent_ai_training, source="signup"))
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
-@router.post("/signup")
+@router.post("/signup", response_model=AuthResponse)
 async def signup(req: SignupReq, db: AsyncSession = Depends(get_db)):
     # Duplicate email check
     existing = await db.execute(select(User).where(User.email == req.email))
@@ -63,7 +104,20 @@ async def signup(req: SignupReq, db: AsyncSession = Depends(get_db)):
         if not ngo:
             raise HTTPException(status_code=404, detail="Invalid invite code")
 
-        user = User(email=req.email, password_hash=hash_password(req.password), role="volunteer", ngo_id=ngo.id)
+        user = User(
+            email=req.email,
+            password_hash=hash_password(req.password),
+            role="volunteer",
+            ngo_id=ngo.id,
+            full_name=req.full_name,
+            phone=req.phone,
+            preferred_language=req.preferred_language,
+            communication_opt_in=req.communication_opt_in,
+            consent_analytics=req.consent_analytics,
+            consent_personalization=req.consent_personalization,
+            consent_ai_training=req.consent_ai_training,
+            profile_completed_at=datetime.utcnow() if req.full_name and req.phone and req.city else None,
+        )
         db.add(user)
         await db.flush()  # get user.id before commit
 
@@ -72,22 +126,44 @@ async def signup(req: SignupReq, db: AsyncSession = Depends(get_db)):
             ngo_id=ngo.id,
             skills=[],
             availability={"mon": True, "tue": True, "wed": True, "thu": True, "fri": True, "sat": False, "sun": False},
+            full_name=req.full_name,
+            phone=req.phone,
+            city=req.city,
+            motivation_statement=req.motivation_statement,
+            languages=req.languages,
+            causes_supported=req.causes_supported,
+            education_level=req.education_level,
+            years_experience=req.years_experience,
         )
         db.add(profile)
+        _record_consent_events(user.id, req, db)
         await db.commit()
         token = create_token(user.id, "volunteer", ngo.id, req.email)
         return {"token": token, "role": "volunteer", "ngo_id": ngo.id, "ngo_name": ngo.name}
 
     # ngo_admin — no ngo_id yet; must call /ngo/create next
-    user = User(email=req.email, password_hash=hash_password(req.password), role="ngo_admin", ngo_id=None)
+    user = User(
+        email=req.email,
+        password_hash=hash_password(req.password),
+        role="ngo_admin",
+        ngo_id=None,
+        full_name=req.full_name,
+        phone=req.phone,
+        preferred_language=req.preferred_language,
+        communication_opt_in=req.communication_opt_in,
+        consent_analytics=req.consent_analytics,
+        consent_personalization=req.consent_personalization,
+        consent_ai_training=req.consent_ai_training,
+    )
     db.add(user)
     await db.flush()
+    _record_consent_events(user.id, req, db)
     await db.commit()
     token = create_token(user.id, "ngo_admin", None, req.email)
     return {"token": token, "role": "ngo_admin", "ngo_id": None, "needs_ngo_setup": True}
 
 
-@router.post("/ngo/create")
+@router.post("/ngo/create", response_model=AuthResponse)
 async def create_ngo(
     req: NGOCreateReq,
     user: CurrentUser = Depends(get_current_user),
@@ -103,7 +179,19 @@ async def create_ngo(
     while (await db.execute(select(NGO).where(NGO.invite_code == code))).scalar_one_or_none():
         code = _random_code()
 
-    ngo = NGO(name=req.name, description=req.description, invite_code=code, created_by=user.user_id)
+    ngo = NGO(
+        name=req.name,
+        description=req.description,
+        invite_code=code,
+        created_by=user.user_id,
+        sector=req.sector,
+        website=req.website,
+        headquarters_city=req.headquarters_city,
+        primary_contact_name=req.primary_contact_name,
+        primary_contact_phone=req.primary_contact_phone,
+        operating_regions=req.operating_regions,
+        mission_focus=req.mission_focus,
+    )
     db.add(ngo)
     await db.flush()
 
@@ -111,15 +199,16 @@ async def create_ngo(
     await db.commit()
     token = create_token(user.user_id, "ngo_admin", ngo.id, user.email)
 
-    return {"token": token, "ngo_id": ngo.id, "invite_code": code, "name": ngo.name}
+    return {"token": token, "role": "ngo_admin", "ngo_id": ngo.id, "invite_code": code, "ngo_name": ngo.name}
 
 
-@router.post("/login")
+@router.post("/login", response_model=AuthResponse)
 async def login(req: LoginReq, db: AsyncSession = Depends(get_db)):
     user = (await db.execute(select(User).where(User.email == req.email))).scalar_one_or_none()
     if not user or not verify_password(req.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    user.last_login_at = datetime.utcnow()
     token = create_token(user.id, user.role, user.ngo_id, user.email)
     return {
         "token":  token,
@@ -129,7 +218,7 @@ async def login(req: LoginReq, db: AsyncSession = Depends(get_db)):
     }
 
 
-@router.post("/google")
+@router.post("/google", response_model=AuthResponse)
 async def google_auth(req: GoogleAuthReq, db: AsyncSession = Depends(get_db)):
     """Google Sign-In: find or create user by email, return JWT. No password needed."""
     try:
@@ -146,6 +235,7 @@ async def _google_auth_inner(req: GoogleAuthReq, db: AsyncSession):
 
     if user:
         # Existing user — return token regardless of how they originally signed up
+        user.last_login_at = datetime.utcnow()
         token = create_token(user.id, user.role, user.ngo_id, user.email)
         return {
             "token": token,
@@ -163,7 +253,20 @@ async def _google_auth_inner(req: GoogleAuthReq, db: AsyncSession):
             raise HTTPException(status_code=404, detail="Invalid invite code")
 
         try:
-            user = User(email=req.email, password_hash=None, role="volunteer", ngo_id=ngo.id)
+            user = User(
+                email=req.email,
+                password_hash=None,
+                role="volunteer",
+                ngo_id=ngo.id,
+                full_name=req.full_name,
+                phone=req.phone,
+                preferred_language=req.preferred_language,
+                communication_opt_in=req.communication_opt_in,
+                consent_analytics=req.consent_analytics,
+                consent_personalization=req.consent_personalization,
+                consent_ai_training=req.consent_ai_training,
+                profile_completed_at=datetime.utcnow() if req.full_name and req.phone and req.city else None,
+            )
             db.add(user)
             await db.flush()
 
@@ -172,8 +275,17 @@ async def _google_auth_inner(req: GoogleAuthReq, db: AsyncSession):
                 ngo_id=ngo.id,
                 skills=[],
                 availability={"mon": True, "tue": True, "wed": True, "thu": True, "fri": True, "sat": False, "sun": False},
+                full_name=req.full_name,
+                phone=req.phone,
+                city=req.city,
+                motivation_statement=req.motivation_statement,
+                languages=req.languages,
+                causes_supported=req.causes_supported,
+                education_level=req.education_level,
+                years_experience=req.years_experience,
             )
             db.add(profile)
+            _record_consent_events(user.id, req, db)
             await db.commit()
             token = create_token(user.id, "volunteer", ngo.id, req.email)
             return {"token": token, "role": "volunteer", "ngo_id": ngo.id, "ngo_name": ngo.name}
@@ -192,9 +304,22 @@ async def _google_auth_inner(req: GoogleAuthReq, db: AsyncSession):
 
     # ngo_admin — NGO created separately via /ngo/create
     try:
-        user = User(email=req.email, password_hash=None, role="ngo_admin", ngo_id=None)
+        user = User(
+            email=req.email,
+            password_hash=None,
+            role="ngo_admin",
+            ngo_id=None,
+            full_name=req.full_name,
+            phone=req.phone,
+            preferred_language=req.preferred_language,
+            communication_opt_in=req.communication_opt_in,
+            consent_analytics=req.consent_analytics,
+            consent_personalization=req.consent_personalization,
+            consent_ai_training=req.consent_ai_training,
+        )
         db.add(user)
         await db.flush()
+        _record_consent_events(user.id, req, db)
         await db.commit()
         token = create_token(user.id, "ngo_admin", None, req.email)
         return {"token": token, "role": "ngo_admin", "ngo_id": None, "needs_ngo_setup": True}

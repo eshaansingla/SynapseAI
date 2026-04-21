@@ -5,7 +5,22 @@ import os
 import warnings
 
 _DEV_SECRET = "synapse-dev-secret-change-in-prod-32chars!"
-SECRET_KEY  = os.getenv("JWT_SECRET_KEY", _DEV_SECRET)
+_PROD_MARKERS = {
+    os.getenv("APP_ENV", "").lower(),
+    os.getenv("ENV", "").lower(),
+    os.getenv("FASTAPI_ENV", "").lower(),
+}
+_IS_PRODUCTION = any(marker == "production" for marker in _PROD_MARKERS) or any(
+    os.getenv(name) for name in ("RENDER", "RAILWAY_ENVIRONMENT", "VERCEL", "GCP_PROJECT")
+)
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    if _IS_PRODUCTION:
+        raise RuntimeError(
+            "JWT_SECRET_KEY is required in production; set a strong secret in the deployment environment."
+        )
+    SECRET_KEY = _DEV_SECRET
 ALGORITHM   = "HS256"
 EXPIRE_MINS = 60 * 24  # 24 hours
 
@@ -14,6 +29,11 @@ if SECRET_KEY == _DEV_SECRET:
         "JWT_SECRET_KEY is using the insecure default — set a strong secret in production!",
         stacklevel=2,
     )
+
+
+def validate_jwt_config() -> None:
+    if not SECRET_KEY:
+        raise RuntimeError("JWT_SECRET_KEY is required.")
 
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

@@ -24,6 +24,16 @@ class NGO(Base):
     invite_code: Mapped[str] = mapped_column(String(16), unique=True, nullable=False)
     created_by:  Mapped[str] = mapped_column(String(36), ForeignKey("users.id", use_alter=True, name="fk_ngo_created_by"), nullable=False)
     created_at:  Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    sector:      Mapped[str | None] = mapped_column(String(120), nullable=True)
+    website:     Mapped[str | None] = mapped_column(String(300), nullable=True)
+    headquarters_city: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    primary_contact_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    primary_contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    operating_regions: Mapped[list] = mapped_column(JSON, default=list)
+    mission_focus: Mapped[list] = mapped_column(JSON, default=list)
+    updated_at:  Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
 
 
 # ── Users ────────────────────────────────────────────────────────────────────
@@ -42,6 +52,16 @@ class User(Base):
         String(36), ForeignKey("ngos.id"), nullable=True
     )
     created_at:    Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    full_name:     Mapped[str | None] = mapped_column(String(200), nullable=True)
+    phone:         Mapped[str | None] = mapped_column(String(30), nullable=True)
+    preferred_language: Mapped[str] = mapped_column(String(32), default="en")
+    communication_opt_in: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    consent_analytics: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    consent_personalization: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    consent_ai_training: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    profile_completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    last_login_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
 
 # ── Volunteer Profiles ───────────────────────────────────────────────────────
@@ -66,6 +86,19 @@ class VolunteerProfile(Base):
     city:           Mapped[str | None]   = mapped_column(String(100), nullable=True)
     bio:            Mapped[str | None]   = mapped_column(Text, nullable=True)
     date_of_birth:  Mapped[datetime.date | None] = mapped_column(Date, nullable=True)
+    emergency_contact_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    emergency_contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    education_level: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    years_experience: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    preferred_roles: Mapped[list] = mapped_column(JSON, default=list)
+    certifications: Mapped[list] = mapped_column(JSON, default=list)
+    languages: Mapped[list] = mapped_column(JSON, default=list)
+    causes_supported: Mapped[list] = mapped_column(JSON, default=list)
+    motivation_statement: Mapped[str | None] = mapped_column(Text, nullable=True)
+    availability_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    work_preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+    last_active_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    profile_completeness_score: Mapped[float] = mapped_column(Float, default=0)
 
 
 # ── Tasks ────────────────────────────────────────────────────────────────────
@@ -89,6 +122,13 @@ class Task(Base):
     lat:             Mapped[float | None] = mapped_column(Float, nullable=True)
     lng:             Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at:      Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    updated_at:      Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
+    task_category:   Mapped[str | None] = mapped_column(String(100), nullable=True)
+    estimated_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    urgency_score:   Mapped[float] = mapped_column(Float, default=50)
+    impact_tags:     Mapped[list] = mapped_column(JSON, default=list)
 
 
 # ── Assignments ──────────────────────────────────────────────────────────────
@@ -107,6 +147,13 @@ class Assignment(Base):
     assigned_at:  Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
     accepted_at:  Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at:   Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )
+    hours_spent:  Mapped[float | None] = mapped_column(Float, nullable=True)
+    completion_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ngo_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    match_score:  Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 # ── Resources ────────────────────────────────────────────────────────────────
@@ -207,3 +254,59 @@ class TaskEnrollmentRequest(Base):
         SAEnum("pending", "approved", "rejected", name="enroll_status"), default="pending"
     )
     created_at:   Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+
+# ── Consent & Chatbot Telemetry ─────────────────────────────────────────────
+
+class ConsentEvent(Base):
+    __tablename__ = "consent_events"
+    __table_args__ = (
+        Index("ix_consent_user_id", "user_id"),
+        Index("ix_consent_scope", "scope"),
+    )
+
+    id:         Mapped[str] = mapped_column(String(36), primary_key=True, default=_gen_id)
+    user_id:    Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    scope:      Mapped[str] = mapped_column(
+        SAEnum("analytics", "personalization", "ai_training", name="consent_scope"), nullable=False
+    )
+    granted:    Mapped[bool] = mapped_column(Boolean, nullable=False)
+    source:     Mapped[str] = mapped_column(String(60), default="ui")
+    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+
+
+class ChatbotSession(Base):
+    __tablename__ = "chatbot_sessions"
+    __table_args__ = (
+        Index("ix_chatbot_session_user_id", "user_id"),
+        Index("ix_chatbot_session_ngo_id", "ngo_id"),
+    )
+
+    id:          Mapped[str] = mapped_column(String(36), primary_key=True, default=_gen_id)
+    user_id:     Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    ngo_id:      Mapped[str | None] = mapped_column(String(36), ForeignKey("ngos.id"), nullable=True)
+    channel:     Mapped[str] = mapped_column(String(40), default="web")
+    language:    Mapped[str] = mapped_column(String(32), default="en")
+    context_tags: Mapped[list] = mapped_column(JSON, default=list)
+    created_at:  Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    ended_at:    Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class ChatbotMessage(Base):
+    __tablename__ = "chatbot_messages"
+    __table_args__ = (
+        Index("ix_chatbot_msg_session_id", "session_id"),
+        Index("ix_chatbot_msg_role", "role"),
+    )
+
+    id:          Mapped[str] = mapped_column(String(36), primary_key=True, default=_gen_id)
+    session_id:  Mapped[str] = mapped_column(String(36), ForeignKey("chatbot_sessions.id"), nullable=False)
+    user_id:     Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False)
+    role:        Mapped[str] = mapped_column(
+        SAEnum("user", "assistant", "system", name="chat_role"), nullable=False
+    )
+    content:     Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_features: Mapped[dict] = mapped_column(JSON, default=dict)
+    latency_ms:  Mapped[int | None] = mapped_column(Integer, nullable=True)
+    user_feedback: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at:  Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)

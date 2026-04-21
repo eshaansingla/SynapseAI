@@ -1,3 +1,5 @@
+import type { AuthResponse, TaskResponse, VolunteerProfileResponse } from "./types";
+
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 type GoogleAuthBody = { email: string; firebase_uid: string; role: string; invite_code?: string };
@@ -70,26 +72,54 @@ export async function ngoDelete<T>(path: string, token: string): Promise<T> {
 
 export const api = {
   // Auth
-  signup: (body: { email: string; password: string; role: string; invite_code?: string }) =>
+  signup: (body: {
+    email: string;
+    password: string;
+    role: string;
+    invite_code?: string;
+    full_name?: string;
+    phone?: string;
+    city?: string;
+    preferred_language?: string;
+    communication_opt_in?: boolean;
+    consent_analytics?: boolean;
+    consent_personalization?: boolean;
+    consent_ai_training?: boolean;
+    motivation_statement?: string;
+    languages?: string[];
+    causes_supported?: string[];
+    education_level?: string;
+    years_experience?: number;
+  }): Promise<AuthResponse> =>
     fetch(`${BASE}/api/auth/signup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(handleRes<{ token: string; role: string; ngo_id: string | null; needs_ngo_setup?: boolean }>),
+    }).then(handleRes<AuthResponse>),
 
   googleAuth: (body: { email: string; firebase_uid: string; role: string; invite_code?: string }) =>
     fetch(`${BASE}/api/auth/google`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(handleRes<{ token: string; role: string; ngo_id: string | null; needs_ngo_setup?: boolean }>),
+    }).then(handleRes<AuthResponse>),
 
   lookupNGO: (inviteCode: string) =>
     fetch(`${BASE}/api/auth/ngo/lookup/${encodeURIComponent(inviteCode)}`)
       .then(handleRes<{ ngo_name: string; invite_code: string }>),
 
-  createNGO: (token: string, body: { name: string; description: string }) =>
-    ngoPost<{ token: string; ngo_id: string; invite_code: string; name: string }>(
+  createNGO: (token: string, body: {
+    name: string;
+    description: string;
+    sector?: string;
+    website?: string;
+    headquarters_city?: string;
+    primary_contact_name?: string;
+    primary_contact_phone?: string;
+    operating_regions?: string[];
+    mission_focus?: string[];
+  }): Promise<AuthResponse> =>
+    ngoPost<AuthResponse>(
       "/api/auth/ngo/create", token, body
     ),
 
@@ -113,11 +143,11 @@ export const api = {
 
   ngoTasks: (token: string, params?: { status?: string }) => {
     const q = new URLSearchParams(params as Record<string, string>).toString();
-    return ngoGet<any[]>(`/api/ngo/tasks${q ? `?${q}` : ""}`, token);
+    return ngoGet<TaskResponse[]>(`/api/ngo/tasks${q ? `?${q}` : ""}`, token);
   },
 
   createTask: (token: string, body: { title: string; description: string; required_skills: string[]; deadline?: string; lat?: number; lng?: number }) =>
-    ngoPost<{ id: string; title: string; status: string }>("/api/ngo/tasks", token, body),
+    ngoPost<TaskResponse>("/api/ngo/tasks", token, body),
 
   updateTask: (token: string, id: string, body: object) =>
     ngoPut<any>(`/api/ngo/tasks/${id}`, token, body),
@@ -154,9 +184,27 @@ export const api = {
     ngoGet<any>("/api/volunteer/dashboard", token),
 
   volProfile: (token: string) =>
-    ngoGet<any>("/api/volunteer/profile", token),
+    ngoGet<VolunteerProfileResponse>("/api/volunteer/profile", token),
 
-  updateVolProfile: (token: string, body: { skills?: string[]; availability?: object; full_name?: string; phone?: string; city?: string; bio?: string; date_of_birth?: string }) =>
+  updateVolProfile: (token: string, body: {
+    skills?: string[];
+    availability?: object;
+    full_name?: string;
+    phone?: string;
+    city?: string;
+    bio?: string;
+    date_of_birth?: string;
+    emergency_contact_name?: string;
+    emergency_contact_phone?: string;
+    education_level?: string;
+    years_experience?: number;
+    preferred_roles?: string[];
+    certifications?: string[];
+    languages?: string[];
+    causes_supported?: string[];
+    motivation_statement?: string;
+    availability_notes?: string;
+  }) =>
     ngoPut<any>("/api/volunteer/profile", token, body),
 
   updateVolLocation: (token: string, lat: number, lng: number) =>

@@ -20,6 +20,7 @@ from api.ngo_admin_routes  import router as ngo_router
 from api.vol_mgmt_routes   import router as vol_router
 from services.neo4j_service import neo4j_service
 from db.base import init_db
+from utils.auth_utils import validate_jwt_config
 
 load_dotenv()
 
@@ -27,6 +28,7 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    validate_jwt_config()
     await neo4j_service.initialize_schema()
     try:
         await init_db()  # create PostgreSQL tables (idempotent)

@@ -46,6 +46,18 @@ export default function VolProfilePage() {
   const [city, setCity]         = useState("");
   const [bio, setBio]           = useState("");
   const [dob, setDob]           = useState("");
+  const [emergencyContactName, setEmergencyContactName] = useState("");
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState("");
+  const [educationLevel, setEducationLevel] = useState("");
+  const [yearsExperience, setYearsExperience] = useState("");
+  const [preferredRolesInput, setPreferredRolesInput] = useState("");
+  const [certificationsInput, setCertificationsInput] = useState("");
+  const [languagesInput, setLanguagesInput] = useState("");
+  const [causesSupportedInput, setCausesSupportedInput] = useState("");
+  const [motivationStatement, setMotivationStatement] = useState("");
+  const [availabilityNotes, setAvailabilityNotes] = useState("");
+
+  const splitCsv = (value: string) => value.split(",").map((x) => x.trim()).filter(Boolean);
 
   useEffect(() => {
     if (!user) return;
@@ -58,6 +70,16 @@ export default function VolProfilePage() {
         setCity(p.city ?? "");
         setBio(p.bio ?? "");
         setDob(p.date_of_birth ?? "");
+        setEmergencyContactName(p.emergency_contact_name ?? "");
+        setEmergencyContactPhone(p.emergency_contact_phone ?? "");
+        setEducationLevel(p.education_level ?? "");
+        setYearsExperience((p.years_experience ?? "").toString());
+        setPreferredRolesInput((p.preferred_roles ?? []).join(", "));
+        setCertificationsInput((p.certifications ?? []).join(", "));
+        setLanguagesInput((p.languages ?? []).join(", "));
+        setCausesSupportedInput((p.causes_supported ?? []).join(", "));
+        setMotivationStatement(p.motivation_statement ?? "");
+        setAvailabilityNotes(p.availability_notes ?? "");
         if (p.share_location) { setShareLocation(true); setLocationStatus("active"); }
         if (p.performance_score !== undefined) {
           setPerformance({ completed_tasks: p.completed_tasks ?? 0, total_assigned: p.total_assigned ?? 0, performance_score: p.performance_score ?? 0 });
@@ -127,6 +149,16 @@ export default function VolProfilePage() {
         city: city || undefined,
         bio: bio || undefined,
         date_of_birth: dob || undefined,
+        emergency_contact_name: emergencyContactName || undefined,
+        emergency_contact_phone: emergencyContactPhone || undefined,
+        education_level: educationLevel || undefined,
+        years_experience: yearsExperience ? Number(yearsExperience) : undefined,
+        preferred_roles: splitCsv(preferredRolesInput),
+        certifications: splitCsv(certificationsInput),
+        languages: splitCsv(languagesInput),
+        causes_supported: splitCsv(causesSupportedInput),
+        motivation_statement: motivationStatement || undefined,
+        availability_notes: availabilityNotes || undefined,
       } as any);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -207,7 +239,60 @@ export default function VolProfilePage() {
             className={`${inputCls} resize-none`}
           />
         </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500 font-medium">Emergency Contact Name</label>
+            <input value={emergencyContactName} onChange={(e) => setEmergencyContactName(e.target.value)} placeholder="Contact person" className={inputCls} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500 font-medium">Emergency Contact Phone</label>
+            <input value={emergencyContactPhone} onChange={(e) => setEmergencyContactPhone(e.target.value)} placeholder="+91 ..." className={inputCls} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500 font-medium">Education Level</label>
+            <input value={educationLevel} onChange={(e) => setEducationLevel(e.target.value)} placeholder="Graduate" className={inputCls} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500 font-medium">Years of Experience</label>
+            <input type="number" min={0} max={80} value={yearsExperience} onChange={(e) => setYearsExperience(e.target.value)} placeholder="0" className={inputCls} />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-gray-500 font-medium">Motivation Statement</label>
+          <textarea value={motivationStatement} onChange={(e) => setMotivationStatement(e.target.value)} rows={2} placeholder="Why you volunteer" className={`${inputCls} resize-none`} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-gray-500 font-medium">Availability Notes</label>
+          <textarea value={availabilityNotes} onChange={(e) => setAvailabilityNotes(e.target.value)} rows={2} placeholder="Preferred hours or constraints" className={`${inputCls} resize-none`} />
+        </div>
         <p className="text-[11px] text-gray-400">Account: <span className="font-mono">{user.email}</span></p>
+      </motion.div>
+
+      {/* Extended preferences */}
+      <motion.div
+        whileHover={{ y: -2, boxShadow: "0 12px 32px rgba(42,130,86,0.12)", borderColor: "#95C78F" }}
+        className="rounded-2xl border border-gray-200 shadow-sm p-5 space-y-4"
+        style={{ background: "var(--card-bg)" }}
+      >
+        <h2 className="text-sm font-semibold text-gray-700">Experience & Preferences</h2>
+        <div className="space-y-1">
+          <label className="text-xs text-gray-500 font-medium">Preferred Roles (comma-separated)</label>
+          <input value={preferredRolesInput} onChange={(e) => setPreferredRolesInput(e.target.value)} placeholder="Field Ops, Teaching" className={inputCls} />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-gray-500 font-medium">Certifications (comma-separated)</label>
+          <input value={certificationsInput} onChange={(e) => setCertificationsInput(e.target.value)} placeholder="First Aid, CPR" className={inputCls} />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500 font-medium">Languages (comma-separated)</label>
+            <input value={languagesInput} onChange={(e) => setLanguagesInput(e.target.value)} placeholder="English, Hindi" className={inputCls} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-gray-500 font-medium">Causes Supported (comma-separated)</label>
+            <input value={causesSupportedInput} onChange={(e) => setCausesSupportedInput(e.target.value)} placeholder="Environment, Education" className={inputCls} />
+          </div>
+        </div>
       </motion.div>
 
       {/* Skills */}

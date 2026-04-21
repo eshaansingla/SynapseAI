@@ -4,6 +4,18 @@ from neo4j import AsyncGraphDatabase
 
 logger = logging.getLogger(__name__)
 
+_LOG_LEVELS = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+_NOTIFICATION_LEVEL = os.getenv("NEO4J_NOTIFICATIONS_LOG_LEVEL", "WARNING").upper()
+logging.getLogger("neo4j.notifications").setLevel(
+    _LOG_LEVELS.get(_NOTIFICATION_LEVEL, logging.WARNING)
+)
+
 SCHEMA_QUERIES = [
     "CREATE CONSTRAINT need_id IF NOT EXISTS FOR (n:Need) REQUIRE n.id IS UNIQUE",
     "CREATE CONSTRAINT location_id IF NOT EXISTS FOR (l:Location) REQUIRE l.id IS UNIQUE",

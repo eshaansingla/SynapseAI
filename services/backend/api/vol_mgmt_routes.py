@@ -8,6 +8,8 @@ from sqlalchemy import select, update, func
 
 from db.base import get_db
 from db.models import User, VolunteerProfile, Task, Assignment, Notification, TaskEnrollmentRequest
+from api.schemas import VolunteerProfileResponse
+from middleware.consent import require_ai_training_consent
 from middleware.rbac import CurrentUser, require_volunteer
 
 router = APIRouter()
@@ -23,6 +25,16 @@ class ProfileUpdateReq(BaseModel):
     city:          Optional[str]       = Field(None, max_length=100)
     bio:           Optional[str]       = None
     date_of_birth: Optional[str]       = None  # YYYY-MM-DD
+    emergency_contact_name: Optional[str] = Field(None, max_length=200)
+    emergency_contact_phone: Optional[str] = Field(None, max_length=30)
+    education_level: Optional[str] = Field(None, max_length=80)
+    years_experience: Optional[int] = Field(None, ge=0, le=80)
+    preferred_roles: Optional[List[str]] = None
+    certifications: Optional[List[str]] = None
+    languages: Optional[List[str]] = None
+    causes_supported: Optional[List[str]] = None
+    motivation_statement: Optional[str] = Field(None, max_length=2000)
+    availability_notes: Optional[str] = Field(None, max_length=1200)
 
 
 class EnrollReq(BaseModel):
@@ -120,7 +132,7 @@ async def vol_dashboard(
 
 # ── Profile ──────────────────────────────────────────────────────────────────
 
-@router.get("/profile")
+@router.get("/profile", response_model=VolunteerProfileResponse)
 async def get_profile(
     user: CurrentUser = Depends(require_volunteer),
     db: AsyncSession = Depends(get_db),
@@ -163,6 +175,17 @@ async def get_profile(
         "city":             p.city             if p else None,
         "bio":              p.bio              if p else None,
         "date_of_birth":    p.date_of_birth.isoformat() if p and p.date_of_birth else None,
+        "emergency_contact_name": p.emergency_contact_name if p else None,
+        "emergency_contact_phone": p.emergency_contact_phone if p else None,
+        "education_level": p.education_level if p else None,
+        "years_experience": p.years_experience if p else None,
+        "preferred_roles": p.preferred_roles if p else [],
+        "certifications": p.certifications if p else [],
+        "languages": p.languages if p else [],
+        "causes_supported": p.causes_supported if p else [],
+        "motivation_statement": p.motivation_statement if p else None,
+        "availability_notes": p.availability_notes if p else None,
+        "profile_completeness_score": p.profile_completeness_score if p else 0,
         "completed_tasks":  completed_count,
         "total_assigned":   total_assigned,
         "acceptance_rate":  acceptance_rate,
@@ -188,11 +211,42 @@ async def update_profile(
     if req.phone is not None:         p.phone = req.phone
     if req.city is not None:          p.city = req.city
     if req.bio is not None:           p.bio = req.bio
+    if req.emergency_contact_name is not None: p.emergency_contact_name = req.emergency_contact_name
+    if req.emergency_contact_phone is not None: p.emergency_contact_phone = req.emergency_contact_phone
+    if req.education_level is not None: p.education_level = req.education_level
+    if req.years_experience is not None: p.years_experience = req.years_experience
+    if req.preferred_roles is not None: p.preferred_roles = req.preferred_roles
+    if req.certifications is not None: p.certifications = req.certifications
+    if req.languages is not None: p.languages = req.languages
+    if req.causes_supported is not None: p.causes_supported = req.causes_supported
+    if req.motivation_statement is not None: p.motivation_statement = req.motivation_statement
+    if req.availability_notes is not None: p.availability_notes = req.availability_notes
     if req.date_of_birth is not None:
         try:
             p.date_of_birth = dt.date.fromisoformat(req.date_of_birth)
         except ValueError:
             raise HTTPException(status_code=400, detail="date_of_birth must be YYYY-MM-DD")
+
+    profile_fields = [
+        p.full_name,
+        p.phone,
+        p.city,
+        p.bio,
+        p.date_of_birth,
+        p.emergency_contact_name,
+        p.emergency_contact_phone,
+        p.education_level,
+        p.motivation_statement,
+    ]
+    list_fields = [p.skills, p.preferred_roles, p.languages, p.causes_supported]
+    filled_scalar = sum(1 for v in profile_fields if v)
+    filled_lists = sum(1 for v in list_fields if v and len(v) > 0)
+    p.profile_completeness_score = round(((filled_scalar + filled_lists) / 13) * 100, 1)
+    p.last_active_at = dt.datetime.utcnow()
+
+    u = await db.get(User, user.user_id)
+    if u and p.profile_completeness_score >= 60 and not u.profile_completed_at:
+        u.profile_completed_at = dt.datetime.utcnow()
     return {"message": "Profile updated"}
 
 
@@ -375,7 +429,7 @@ async def complete_assignment(
 
 @router.get("/recommendations")
 async def get_recommendations(
-    user: CurrentUser = Depends(require_volunteer),
+    user: CurrentUser = Depends(require_ai_training_consent),
     db: AsyncSession = Depends(get_db),
 ):
     profile = (await db.execute(

@@ -23,7 +23,7 @@ async def rank_volunteers(task_id: str, ngo_id: str, db: AsyncSession) -> List[d
     result = await db.execute(
         select(User, VolunteerProfile)
         .join(VolunteerProfile, VolunteerProfile.user_id == User.id)
-        .where(User.ngo_id == ngo_id, VolunteerProfile.status == "active")
+        .where(User.ngo_id == ngo_id, VolunteerProfile.status == "active", User.consent_ai_training == True)  # noqa: E712
     )
     rows = result.fetchall()
 
