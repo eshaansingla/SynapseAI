@@ -101,6 +101,26 @@ body {
 .dark .bg-\[\#F5F6F1\]    { background-color: #0a2019; }
 .dark .bg-gray-50          { background-color: rgba(0,0,0,0.1); }
 .dark .bg-gray-100         { background-color: rgba(0,0,0,0.15); }
+/* Override any residual gray-900/950 dark: classes to teal */
+/* Plain class (bg-gray-900 used without dark: prefix) */
+.dark .bg-gray-950         { background-color: #072921; }
+.dark .bg-gray-900         { background-color: #122622; }
+.dark .bg-gray-800         { background-color: #0a2019; }
+.dark .bg-gray-700         { background-color: rgba(255,255,255,0.06); }
+.dark .border-gray-800     { border-color: rgba(255,255,255,0.08); }
+.dark .border-gray-700     { border-color: rgba(255,255,255,0.12); }
+/* Tailwind dark: variant classes (dark:bg-gray-X generates .dark .dark\:bg-gray-X) */
+.dark .dark\:bg-gray-950   { background-color: #072921 !important; }
+.dark .dark\:bg-gray-900   { background-color: #122622 !important; }
+.dark .dark\:bg-gray-800   { background-color: #0a2019 !important; }
+.dark .dark\:bg-gray-700   { background-color: rgba(255,255,255,0.06) !important; }
+.dark .dark\:border-gray-800 { border-color: rgba(255,255,255,0.08) !important; }
+.dark .dark\:border-gray-700 { border-color: rgba(255,255,255,0.12) !important; }
+.dark .dark\:text-gray-100 { color: #f1f5f9 !important; }
+.dark .dark\:text-gray-200 { color: #e2e8f0 !important; }
+.dark .dark\:text-gray-300 { color: rgba(255,255,255,0.75) !important; }
+.dark .dark\:text-gray-400 { color: rgba(255,255,255,0.55) !important; }
+.dark .dark\:text-gray-500 { color: rgba(255,255,255,0.45) !important; }
 
 /* Text */
 .dark .text-gray-900       { color: #f1f5f9; }
@@ -114,6 +134,7 @@ body {
 /* Borders */
 .dark .border-gray-200     { border-color: rgba(255,255,255,0.1); }
 .dark .border-gray-100     { border-color: rgba(255,255,255,0.07); }
+.dark .border-gray-50      { border-color: rgba(255,255,255,0.04); }
 .dark .border-gray-300     { border-color: rgba(255,255,255,0.15); }
 
 /* Shadows — stronger on dark bg */
