@@ -112,6 +112,12 @@ export const api = {
       body: JSON.stringify(body),
     }).then(handleRes<AuthResponse>),
 
+  guestAuth: (): Promise<AuthResponse> =>
+    fetch(`${BASE}/api/auth/guest`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    }).then(handleRes<AuthResponse>),
+
   lookupNGO: (inviteCode: string) =>
     fetch(`${BASE}/api/auth/ngo/lookup/${encodeURIComponent(inviteCode)}`)
       .then(handleRes<{ ngo_name: string; invite_code: string }>),

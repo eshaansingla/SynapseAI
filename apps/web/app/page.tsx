@@ -45,9 +45,9 @@ async function exchangeAndRedirect(
     clearTimeout(timeoutId);
     localStorage.setItem("ngo_token", data.token);
     document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
-    if (data.needs_ngo_setup) router.replace("/ngo/setup");
-    else if (role === "ngo_admin") router.replace("/ngo/dashboard");
-    else router.replace("/vol/dashboard");
+    if (data.needs_ngo_setup) window.location.href = "/ngo/setup";
+    else if (role === "ngo_admin") window.location.href = "/ngo/dashboard";
+    else window.location.href = "/vol/dashboard";
   } catch (e: unknown) {
     clearTimeout(timeoutId);
     setError(friendlyError(e));
@@ -95,10 +95,10 @@ async function handleGuestSignIn(
   setError("");
   setBusy(true);
   try {
-    const data = await api.post("/auth/guest", {});
+    const data = await api.guestAuth();
     localStorage.setItem("ngo_token", data.token);
     document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
-    router.replace("/ngo-dashboard");
+    window.location.href = "/ngo/dashboard";
   } catch (e: unknown) {
     setError(friendlyError(e));
     setBusy(false);
