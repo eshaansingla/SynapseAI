@@ -106,6 +106,24 @@ async function handleGuestSignIn(
   }
 }
 
+async function handleGuestVolunteerSignIn(
+  router: ReturnType<typeof useRouter>,
+  setError: (e: string) => void,
+  setBusy: (b: boolean) => void,
+) {
+  setError("");
+  setBusy(true);
+  try {
+    const data = await api.guestVolunteerAuth();
+    localStorage.setItem("ngo_token", data.token);
+    document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
+    window.location.href = "/vol/dashboard";
+  } catch (e: unknown) {
+    setError(friendlyError(e));
+    setBusy(false);
+  }
+}
+
 // ── Google icon ───────────────────────────────────────────────────────────────
 
 const GoogleIcon = () => (
@@ -260,23 +278,29 @@ function LoginCard({ role, router, isDark }: { role: "ngo_admin" | "volunteer"; 
         </div>
       </div>
 
-      {isNgo && (
-        <button
-          onClick={() => handleGuestSignIn(router, setError, setBusy)}
-          disabled={busy}
-          style={{
-            width: "100%", padding: "12px", borderRadius: 10,
-            background: "linear-gradient(135deg, #8B5CF6, #6D28D9)",
-            color: "#fff", border: "none", fontSize: 14, fontWeight: 600,
-            cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            marginTop: 10, boxShadow: "0 4px 14px rgba(139,92,246,0.3)"
-          }}
-        >
-          <Star size={18} />
-          Guest Mode (for Hackathon Admin)
-        </button>
-      )}
+      <button
+        onClick={() => isNgo
+          ? handleGuestSignIn(router, setError, setBusy)
+          : handleGuestVolunteerSignIn(router, setError, setBusy)
+        }
+        disabled={busy}
+        style={{
+          width: "100%", padding: "12px", borderRadius: 10,
+          background: isNgo
+            ? "linear-gradient(135deg, #8B5CF6, #6D28D9)"
+            : "linear-gradient(135deg, #0e7490, #0891b2)",
+          color: "#fff", border: "none", fontSize: 14, fontWeight: 600,
+          cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.7 : 1,
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          marginTop: 10,
+          boxShadow: isNgo
+            ? "0 4px 14px rgba(139,92,246,0.3)"
+            : "0 4px 14px rgba(8,145,178,0.3)",
+        }}
+      >
+        <Star size={18} />
+        {isNgo ? "Guest Mode (Hackathon Admin Demo)" : "Guest Mode (Hackathon Volunteer Demo)"}
+      </button>
 
       <div style={{ height: 1, background: isDark ? "rgba(255,255,255,0.07)" : "#E5E7EB", margin: "20px 0" }} />
 

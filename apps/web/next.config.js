@@ -3,6 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   serverExternalPackages: ['firebase-admin'],
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'motion/react'],
+  },
 
   // Silence next/image warnings for external user avatars (Google profile photos)
   images: {

@@ -7,7 +7,7 @@ import { ThemeProvider } from '../components/ui/ThemeProvider'
 import { CookieConsentBanner } from '../components/ui/CookieConsentBanner'
 import { validateProductionEnv } from '../lib/env'
 
-const font = Outfit({ subsets: ['latin'] })
+const font = Outfit({ subsets: ['latin'], display: 'swap' })
 
 export const viewport: Viewport = {
   themeColor: '#115E54',

@@ -135,7 +135,13 @@ class Task(Base):
 
 class Assignment(Base):
     __tablename__ = "assignments"
-    __table_args__ = (Index("ix_assign_ngo_id", "ngo_id"),)
+    __table_args__ = (
+        Index("ix_assign_ngo_id",           "ngo_id"),
+        Index("ix_assign_volunteer_id",     "volunteer_id"),
+        Index("ix_assign_task_id",          "task_id"),
+        Index("ix_assign_ngo_status",       "ngo_id",      "status"),
+        Index("ix_assign_volunteer_status", "volunteer_id", "status"),
+    )
 
     id:           Mapped[str] = mapped_column(String(36), primary_key=True, default=_gen_id)
     task_id:      Mapped[str] = mapped_column(String(36), ForeignKey("tasks.id"), nullable=False)
@@ -242,7 +248,12 @@ class Notification(Base):
 
 class TaskEnrollmentRequest(Base):
     __tablename__ = "task_enrollment_requests"
-    __table_args__ = (Index("ix_enroll_ngo_id", "ngo_id"),)
+    __table_args__ = (
+        Index("ix_enroll_ngo_id",            "ngo_id"),
+        Index("ix_enroll_volunteer_id",      "volunteer_id"),
+        Index("ix_enroll_task_id",           "task_id"),
+        Index("ix_enroll_volunteer_status",  "volunteer_id", "status"),
+    )
 
     id:           Mapped[str] = mapped_column(String(36), primary_key=True, default=_gen_id)
     task_id:      Mapped[str] = mapped_column(String(36), ForeignKey("tasks.id"), nullable=False)

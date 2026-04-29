@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import {
   Bot, X, Send, ImagePlus, Loader2, CheckCircle2, Sparkles,
-  ArrowRight, MapPin, ClipboardList, Users, Calendar, BarChart2,
+  MapPin, ClipboardList, Users, Calendar, BarChart2,
   Bell, Shield, HelpCircle, Zap, Camera, RefreshCw, Navigation,
   AlertCircle,
 } from "lucide-react";
@@ -465,7 +465,7 @@ export function ChatbotWidget() {
             transition={{ type: "spring", damping: 26, stiffness: 320 }}
             className="fixed bottom-24 right-6 z-50 flex flex-col rounded-3xl shadow-2xl overflow-hidden border"
             style={{
-              width:       "min(390px, calc(100vw - 20px))",
+              width:       "min(390px, calc(100vw - 12px))",
               height:      "min(620px, calc(100svh - 116px))",
               background:  "var(--bg-surface, #fff)",
               borderColor: "var(--border-color, #E5E7EB)",

@@ -83,7 +83,7 @@ export function NGOAuthProvider({ children }: { children: React.ReactNode }) {
       }
       const data = await res.json();
       localStorage.setItem("ngo_token", data.token);
-      document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`;
+      document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
       const parsed = parseToken(data.token) as NGOUser;
       setUser(parsed);
       return parsed;

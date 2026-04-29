@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Plus, X, Sparkles, Trash2, UserCheck, Loader2, AlertCircle,
   CheckCircle2, Clock, Edit2, Bell, Copy, Check, ChevronDown, ChevronRight,
@@ -276,7 +276,7 @@ export default function TasksPage() {
           placeholder="Search tasks…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#115E54]/50 w-48"
+          className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-[#115E54]/50 w-full sm:w-48"
         />
         <div className="flex gap-1.5 flex-wrap">
           {FILTERS.map((f) => (

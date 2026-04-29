@@ -5,12 +5,12 @@ import os
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost/synapseai")
 
 engine = create_async_engine(
-    DATABASE_URL, 
-    echo=False, 
-    pool_size=5, 
-    max_overflow=10,
-    pool_recycle=300, # Prevents stale connections common in serverless environments
-    pool_pre_ping=True # Verifies connection before providing it to the session
+    DATABASE_URL,
+    echo=False,
+    pool_size=20,       # steady-state connections (was 5)
+    max_overflow=30,    # burst ceiling → 50 total (was 10)
+    pool_recycle=3600,  # recycle hourly, well within RDS 8-hour idle timeout (was 300)
+    pool_pre_ping=True,
 )
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

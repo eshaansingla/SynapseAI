@@ -7,7 +7,7 @@ import { api, friendlyError } from "../../../lib/ngo-api";
 import { NGOAuthProvider, useNGOAuth } from "../../../lib/ngo-auth";
 import {
   Users, Eye, EyeOff, Loader2, ChevronDown, X,
-  Phone, Shield, CheckCircle2, ArrowRight, MapPin, Heart, Briefcase,
+  Phone, Shield, CheckCircle2, ArrowRight, MapPin, Heart, Briefcase, Star,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -156,10 +156,21 @@ function VolunteerRegisterForm() {
   const inviteFromUrl = searchParams.get("invite") ?? "";
   const inviteLocked  = !!inviteFromUrl;
 
-  const [loading, setLoading] = useState(false);
-  const [error,   setError]   = useState("");
-  const [showPwd, setShowPwd] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState("");
+  const [showPwd,   setShowPwd]   = useState(false);
+  const [success,   setSuccess]   = useState(false);
+  const [guestBusy, setGuestBusy] = useState(false);
+
+  const runGuest = async (fn: () => Promise<{ token: string }>, dest: string) => {
+    setGuestBusy(true);
+    try {
+      const data = await fn();
+      localStorage.setItem("ngo_token", data.token);
+      document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
+      window.location.href = dest;
+    } catch { setGuestBusy(false); }
+  };
 
   const [inviteCode,    setInviteCode]    = useState(inviteFromUrl);
   const [inviteNgoName, setInviteNgoName] = useState("");
@@ -524,6 +535,24 @@ function VolunteerRegisterForm() {
               ? <><Loader2 size={18} className="animate-spin" />Registering…</>
               : <><Users size={18} />Join as Volunteer<ArrowRight size={16} /></>}
           </motion.button>
+
+          {/* Hackathon guest shortcuts */}
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" disabled={guestBusy}
+              onClick={() => runGuest(() => api.guestVolunteerAuth(), "/vol/dashboard")}
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white disabled:opacity-60"
+              style={{ background: "linear-gradient(135deg,#0e7490,#0891b2)", boxShadow: "0 3px 10px rgba(8,145,178,0.25)" }}>
+              {guestBusy ? <Loader2 size={12} className="animate-spin" /> : <Star size={12} />}
+              Volunteer Demo
+            </button>
+            <button type="button" disabled={guestBusy}
+              onClick={() => runGuest(() => api.guestAuth(), "/ngo/dashboard")}
+              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold text-white disabled:opacity-60"
+              style={{ background: "linear-gradient(135deg,#8B5CF6,#6D28D9)", boxShadow: "0 3px 10px rgba(139,92,246,0.25)" }}>
+              {guestBusy ? <Loader2 size={12} className="animate-spin" /> : <Star size={12} />}
+              NGO Demo
+            </button>
+          </div>
 
           <p className="text-center text-xs text-white/25 pb-4">
             Already have an account?{" "}

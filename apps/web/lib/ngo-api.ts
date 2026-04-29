@@ -231,6 +231,12 @@ export const api = {
       headers: { "Content-Type": "application/json" },
     }).then(handleRes<AuthResponse>),
 
+  guestVolunteerAuth: (): Promise<AuthResponse> =>
+    fetchSafe(`${BASE}/api/auth/guest-volunteer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    }).then(handleRes<AuthResponse>),
+
   lookupNGO: (inviteCode: string) =>
     fetchSafe(`${BASE}/api/auth/ngo/lookup/${encodeURIComponent(inviteCode)}`)
       .then(handleRes<{ ngo_name: string; invite_code: string }>),

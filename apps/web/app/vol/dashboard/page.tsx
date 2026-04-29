@@ -109,7 +109,7 @@ export default function VolDashboardPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {STAT_LABELS.map((label, i) => {
           const Icon = STAT_ICONS[i];
           return (
@@ -128,7 +128,7 @@ export default function VolDashboardPage() {
               >
                 <Icon size={14} className="text-white" />
               </div>
-              <p className="text-xl font-bold text-gray-800">{statValues[i]}</p>
+              <p className="text-lg sm:text-xl font-bold text-gray-800">{statValues[i]}</p>
               <p className="text-[10px] text-gray-400 leading-tight">{label}</p>
             </motion.div>
           );

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, Building2, Users, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Loader2, Building2, Users, ArrowRight, Star } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { NGOAuthProvider, useNGOAuth } from "../../lib/ngo-auth";
 import { api, friendlyError } from "../../lib/ngo-api";
@@ -10,9 +10,20 @@ import { api, friendlyError } from "../../lib/ngo-api";
 function LoginForm() {
   const router   = useRouter();
   const { login } = useNGOAuth();
-  const [email, setEmail]       = useState("");
-  const [password, setPassword] = useState("");
-  const [showPwd, setShowPwd]   = useState(false);
+  const [email, setEmail]         = useState("");
+  const [password, setPassword]   = useState("");
+  const [showPwd, setShowPwd]     = useState(false);
+  const [guestBusy, setGuestBusy] = useState(false);
+
+  const runGuest = async (fn: () => Promise<{ token: string }>, dest: string) => {
+    setGuestBusy(true);
+    try {
+      const data = await fn();
+      localStorage.setItem("ngo_token", data.token);
+      document.cookie = `ngo_token=${data.token}; path=/; max-age=${60 * 60 * 24}; SameSite=Strict${location.protocol === "https:" ? "; Secure" : ""}`;
+      window.location.href = dest;
+    } catch { setGuestBusy(false); }
+  };
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState("");
   const [notFound, setNotFound] = useState(false);
@@ -142,6 +153,24 @@ function LoginForm() {
               {loading && <Loader2 size={14} className="animate-spin" />}
               Sign In
             </motion.button>
+
+            {/* Guest demo shortcuts */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button type="button" disabled={guestBusy}
+                onClick={() => runGuest(() => api.guestAuth(), "/ngo/dashboard")}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-60"
+                style={{ background: "linear-gradient(135deg, #8B5CF6, #6D28D9)", boxShadow: "0 3px 10px rgba(139,92,246,0.3)" }}>
+                {guestBusy ? <Loader2 size={12} className="animate-spin" /> : <Star size={12} />}
+                NGO Demo
+              </button>
+              <button type="button" disabled={guestBusy}
+                onClick={() => runGuest(() => api.guestVolunteerAuth(), "/vol/dashboard")}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold text-white disabled:opacity-60"
+                style={{ background: "linear-gradient(135deg, #0e7490, #0891b2)", boxShadow: "0 3px 10px rgba(8,145,178,0.3)" }}>
+                {guestBusy ? <Loader2 size={12} className="animate-spin" /> : <Star size={12} />}
+                Volunteer Demo
+              </button>
+            </div>
 
             <div className="flex items-center justify-center gap-3 pt-1">
               <a href="/register/ngo" className="text-xs text-white/30 hover:text-[#95C78F] transition-colors flex items-center gap-1">

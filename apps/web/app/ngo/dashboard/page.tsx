@@ -176,7 +176,7 @@ export default function NGODashboardPage() {
                 </div>
                 <div className="absolute inset-0 rounded-xl animate-spin opacity-20 border-2 border-dashed border-[#48A15E]" style={{ animationDuration: "8s" }} />
               </div>
-              <p className="text-2xl font-bold text-gray-800">{value}</p>
+              <p className="text-xl sm:text-2xl font-bold text-gray-800">{value}</p>
               <p className="text-xs text-gray-500">{label}</p>
             </motion.div>
           );

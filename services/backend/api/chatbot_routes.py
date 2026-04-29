@@ -226,7 +226,8 @@ async def chat_stream(
                         action = parsed.get("action", action)
                         calls = parsed.get("calls", calls)
                         suggestions = parsed.get("suggestions", suggestions)
-                    except Exception: pass
+                    except Exception as _json_err:
+                        logger.debug("Chatbot JSON action block parse failed: %s", _json_err)
 
                 yield f"data: {json.dumps({'action': action, 'calls': calls, 'suggestions': suggestions, 'done': True})}\n\n"
 

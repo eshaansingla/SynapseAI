@@ -8,11 +8,14 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from api.schemas import AuthResponse
 from db.base import get_db
-from db.models import User, NGO, VolunteerProfile, ConsentEvent
+from db.models import (
+    User, NGO, VolunteerProfile, ConsentEvent,
+    Task, Assignment, Event, Resource, Notification,
+)
 from utils.auth_utils import hash_password, verify_password, create_token
 from middleware.rbac import get_current_user, CurrentUser
 
@@ -21,6 +24,175 @@ router = APIRouter()
 
 def _random_code(length: int = 8) -> str:
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
+
+
+async def _seed_ngo_demo_data(admin_user_id: str, ngo_id: str, db: AsyncSession) -> None:
+    """Seed realistic mock data for a guest NGO admin demo session."""
+    now = datetime.utcnow()
+
+    # ── 5 volunteer users + profiles ────────────────────────────────────────
+    vol_specs = [
+        ("Amit Kumar",   "amit",  ["medical_aid", "search_rescue"],          "Mumbai",    85, 4),
+        ("Priya Sharma", "priya", ["logistics", "water_purification"],        "Delhi",     52, 3),
+        ("Rahul Singh",  "rahul", ["logistics", "community_outreach"],        "Pune",      120, 6),
+        ("Meera Patel",  "meera", ["medical_aid", "teaching"],                "Bangalore", 35, 2),
+        ("Arjun Nair",   "arjun", ["search_rescue", "structural_assessment"], "Chennai",   91, 5),
+    ]
+    volunteer_ids: list[str] = []
+    for name, sfx, skills, city, tasks_done, yrs in vol_specs:
+        vu = User(
+            email=f"demo_{sfx}_{ngo_id[:6]}@guest.hackathon",
+            password_hash=hash_password("demo123"),
+            role="volunteer", ngo_id=ngo_id,
+            full_name=name, phone=f"+9198{random.randint(1000000,9999999)}",
+            profile_completed_at=now,
+        )
+        db.add(vu)
+        await db.flush()
+        db.add(VolunteerProfile(
+            user_id=vu.id, ngo_id=ngo_id, skills=skills,
+            availability={"mon": True, "tue": True, "wed": True, "thu": True, "fri": True, "sat": False, "sun": False},
+            full_name=name, city=city, languages=["English", "Hindi"],
+            causes_supported=["Disaster Relief", "Healthcare"],
+            bio=f"Dedicated volunteer with {tasks_done} completed missions. Highly reliable.",
+            years_experience=yrs, profile_completeness_score=0.85,
+        ))
+        volunteer_ids.append(vu.id)
+
+    # ── 8 tasks ──────────────────────────────────────────────────────────────
+    task_specs = [
+        ("Flood Relief — Food Distribution",  "Distribute 2,000 food packets to families in Dharavi flood zones.",        ["logistics", "community_outreach"],        "high",   "open",        3,  19.040, 72.854),
+        ("Medical Camp Setup",                "Set up emergency triage camp for 300 patients. Requires medical training.", ["medical_aid"],                            "high",   "in_progress", 2,  19.076, 72.877),
+        ("Drinking Water Distribution",       "Distribute 5,000 litres of purified water to 10 relief sites.",            ["logistics", "water_purification"],        "medium", "open",        1,  19.052, 72.852),
+        ("Rescue Operations — Rooftop",       "Rescue 45 stranded persons from flooded rooftops using inflatable boats.", ["search_rescue"],                          "high",   "in_progress", 1,  19.062, 72.833),
+        ("Temporary Shelter Construction",    "Build 20 temporary shelters accommodating 100 displaced families.",         ["structural_assessment"],                  "high",   "completed",   -3, 19.035, 72.849),
+        ("Flood Safety Awareness Drive",      "Conduct safety sessions for 200 children and parents in relief camps.",    ["teaching", "community_outreach"],         "low",    "open",        7,  19.048, 72.862),
+        ("Damage Assessment Survey",          "Survey 50 households to record structural damage for relief planning.",    ["community_outreach"],                     "medium", "in_progress", 4,  19.057, 72.841),
+        ("Medical Supply Convoy",             "Escort and distribute medical supplies (ORS, antibiotics) to 3 camps.",    ["medical_aid", "logistics"],               "high",   "open",        2,  19.069, 72.869),
+    ]
+    task_ids: list[str] = []
+    for title, desc, skills, priority, status, days, lat, lng in task_specs:
+        t = Task(
+            ngo_id=ngo_id, title=title, description=desc,
+            required_skills=skills, priority=priority, status=status,
+            deadline=now + timedelta(days=days), lat=lat, lng=lng,
+            urgency_score=90 if priority == "high" else 55,
+        )
+        db.add(t)
+        await db.flush()
+        task_ids.append(t.id)
+
+    # ── assignments ───────────────────────────────────────────────────────────
+    assign_specs = [
+        (0, 0, "accepted"), (1, 1, "accepted"), (2, 2, "assigned"),
+        (3, 3, "accepted"), (4, 4, "completed"), (5, 0, "assigned"),
+        (6, 1, "accepted"), (7, 2, "assigned"),
+    ]
+    for ti, vi, status in assign_specs:
+        a = Assignment(task_id=task_ids[ti], volunteer_id=volunteer_ids[vi], ngo_id=ngo_id, status=status)
+        if status == "completed":
+            a.completed_at = now - timedelta(days=2)
+            a.accepted_at  = now - timedelta(days=4)
+        elif status == "accepted":
+            a.accepted_at = now - timedelta(hours=random.randint(2, 48))
+        db.add(a)
+
+    # ── events ────────────────────────────────────────────────────────────────
+    event_specs = [
+        ("Flood Relief Mega Drive",       "Large-scale relief effort across 5 zones of Mumbai.", "drive",    7,  "Dharavi, Mumbai",    100),
+        ("Medical Awareness & Free Camp", "Free health checkups and medicine distribution.",      "camp",     4,  "Kurla East, Mumbai", 50),
+        ("Volunteer First Aid Training",  "Mandatory first-aid certification for field teams.",   "training", 14, "NGO Headquarters",   30),
+        ("Environmental Cleanup Drive",   "Post-flood cleanup of 3 km stretch in Bandra West.",  "drive",    21, "Bandra West, Mumbai",80),
+    ]
+    for title, desc, etype, days, location, maxv in event_specs:
+        db.add(Event(
+            ngo_id=ngo_id, title=title, description=desc,
+            event_type=etype, date=now + timedelta(days=days),
+            location=location, max_volunteers=maxv, status="upcoming",
+        ))
+
+    # ── resources ─────────────────────────────────────────────────────────────
+    resource_specs = [
+        ("Medical Kits",               50,  "available"),
+        ("Water Purification Tablets", 200, "available"),
+        ("Food Packages",              150, "in_use"),
+        ("Rescue Boats",               8,   "in_use"),
+        ("Temporary Shelters",         25,  "available"),
+        ("First Aid Boxes",            40,  "available"),
+    ]
+    for rtype, qty, rstatus in resource_specs:
+        db.add(Resource(ngo_id=ngo_id, type=rtype, quantity=qty, availability_status=rstatus))
+
+    # ── admin notifications ───────────────────────────────────────────────────
+    admin_notifs = [
+        ("Priya Sharma accepted the 'Drinking Water Distribution' task.",            "status_update"),
+        ("New volunteer joined your NGO: Meera Patel.",                              "general"),
+        ("Task 'Medical Camp Setup' is 80% complete — 1 volunteer active.",          "status_update"),
+        ("Resource alert: Food Packages running low. Current stock: 150 units.",     "general"),
+        ("Upcoming event: Flood Relief Mega Drive in 7 days — volunteers needed!",   "general"),
+        ("Rahul Singh completed 'Temporary Shelter Construction' — 100% verified.",  "status_update"),
+    ]
+    for msg, ntype in admin_notifs:
+        db.add(Notification(user_id=admin_user_id, message=msg, type=ntype))
+
+
+
+async def _seed_volunteer_demo_data(vol_user_id: str, ngo_id: str, db: AsyncSession) -> None:
+    """Seed tasks and assignments for a guest volunteer demo session."""
+    now = datetime.utcnow()
+
+    # ── open tasks in NGO ────────────────────────────────────────────────────
+    open_task_specs = [
+        ("Flood Relief — Food Distribution",  "Distribute 2,000 food packets to Dharavi flood zones.",             ["logistics"],         "high",   1,  19.040, 72.854),
+        ("Medical Supply Convoy",             "Escort medical supplies to 3 remote camps across Dharavi.",         ["medical_aid"],       "high",   2,  19.069, 72.869),
+        ("Flood Safety Awareness Drive",      "Conduct flood safety sessions for 200 children in relief camps.",   ["teaching"],          "low",    5,  19.048, 72.862),
+        ("Community Kitchen Volunteer",       "Help cook and serve meals for 500 flood-affected residents daily.", ["cooking"],           "medium", 3,  19.055, 72.845),
+        ("Water Distribution — Zone 4",       "Distribute 3,000 bottles of mineral water across Zone 4 shelters.", ["logistics"],         "medium", 2,  19.061, 72.858),
+    ]
+    open_task_ids: list[str] = []
+    for title, desc, skills, priority, days, lat, lng in open_task_specs:
+        t = Task(
+            ngo_id=ngo_id, title=title, description=desc,
+            required_skills=skills, priority=priority, status="open",
+            deadline=now + timedelta(days=days), lat=lat, lng=lng,
+            urgency_score=88 if priority == "high" else 55,
+        )
+        db.add(t)
+        await db.flush()
+        open_task_ids.append(t.id)
+
+    # ── tasks assigned to this volunteer ──────────────────────────────────────
+    assigned_specs = [
+        ("Rescue Operations — Rooftop",    "Rescue 45 stranded persons from flooded rooftops using inflatable boats.", ["search_rescue"],                   "high",   "accepted",  1,  19.062, 72.833),
+        ("Damage Assessment Survey",       "Survey 50 households to record structural damage for relief planning.",    ["community_outreach"],              "medium", "assigned",  3,  19.057, 72.841),
+        ("Temporary Shelter Construction", "Build 20 temporary shelters accommodating 100 displaced families.",        ["structural_assessment"],           "high",   "completed", -2, 19.035, 72.849),
+    ]
+    for title, desc, skills, priority, status, days, lat, lng in assigned_specs:
+        t = Task(
+            ngo_id=ngo_id, title=title, description=desc,
+            required_skills=skills, priority=priority, status="in_progress" if status != "completed" else "completed",
+            deadline=now + timedelta(days=days), lat=lat, lng=lng,
+            urgency_score=85 if priority == "high" else 50,
+        )
+        db.add(t)
+        await db.flush()
+        a = Assignment(task_id=t.id, volunteer_id=vol_user_id, ngo_id=ngo_id, status=status)
+        if status == "completed":
+            a.accepted_at  = now - timedelta(days=3)
+            a.completed_at = now - timedelta(days=2)
+        elif status == "accepted":
+            a.accepted_at = now - timedelta(hours=6)
+        db.add(a)
+
+    # ── volunteer notifications ────────────────────────────────────────────────
+    vol_notifs = [
+        ("You have been assigned: 'Rescue Operations — Rooftop'. Accept or decline.", "task_assigned"),
+        ("Your task 'Temporary Shelter Construction' was verified — great work!",     "status_update"),
+        ("Upcoming event: Flood Relief Mega Drive in 7 days. Register now!",          "general"),
+        ("Your profile is 85% complete. Add more skills to get better task matches.", "general"),
+    ]
+    for msg, ntype in vol_notifs:
+        db.add(Notification(user_id=vol_user_id, message=msg, type=ntype))
 
 
 # ── Pydantic models ──────────────────────────────────────────────────────────
@@ -234,10 +406,82 @@ async def guest_login(db: AsyncSession = Depends(get_db)):
     db.add(ConsentEvent(user_id=user.id, scope="analytics", granted=True, source="guest"))
     db.add(ConsentEvent(user_id=user.id, scope="personalization", granted=True, source="guest"))
     db.add(ConsentEvent(user_id=user.id, scope="ai_training", granted=True, source="guest"))
+
+    # Seed demo data so the guest NGO dashboard is fully populated
+    await _seed_ngo_demo_data(user.id, ngo.id, db)
+
     await db.commit()
-    
+
     token = create_token(user.id, "ngo_admin", ngo.id, guest_email)
     return {"token": token, "role": "ngo_admin", "ngo_id": ngo.id, "ngo_name": ngo.name}
+
+
+@router.post("/guest-volunteer", response_model=AuthResponse)
+async def guest_volunteer_login(db: AsyncSession = Depends(get_db)):
+    """
+    Guest Volunteer Mode (for Hackathon Demo)
+    Creates a temporary volunteer account with a demo NGO and pre-seeded tasks/assignments.
+    """
+    import uuid
+    unique_suffix = str(uuid.uuid4())[:8]
+    guest_email = f"vol_guest_{unique_suffix}@synapseai.hackathon"
+
+    # 1. Create volunteer user first so we have a real ID for NGO.created_by
+    vol_user = User(
+        email=guest_email,
+        password_hash=hash_password("guest_password123"),
+        role="volunteer",
+        ngo_id=None,                       # linked to NGO after it's created
+        full_name="Demo Volunteer",
+        phone="+919876543210",
+        profile_completed_at=datetime.utcnow(),
+    )
+    db.add(vol_user)
+    await db.flush()                       # get vol_user.id
+
+    # 2. Create demo NGO with a valid created_by FK
+    ngo_code = _random_code()
+    ngo = NGO(
+        name=f"Demo Relief NGO {unique_suffix}",
+        description="Hackathon demo NGO for volunteer guest mode.",
+        invite_code=ngo_code,
+        created_by=vol_user.id,            # real FK — no constraint violation
+        sector="Disaster Relief",
+        headquarters_city="Mumbai",
+    )
+    db.add(ngo)
+    await db.flush()                       # get ngo.id
+
+    # 3. Link user to NGO
+    vol_user.ngo_id = ngo.id
+
+    # 3. Create volunteer profile
+    db.add(VolunteerProfile(
+        user_id=vol_user.id, ngo_id=ngo.id,
+        skills=["search_rescue", "first_aid", "logistics"],
+        availability={"mon": True, "tue": True, "wed": True, "thu": True, "fri": True, "sat": False, "sun": False},
+        full_name="Demo Volunteer", city="Mumbai",
+        languages=["English", "Hindi"],
+        causes_supported=["Disaster Relief", "Healthcare"],
+        bio="Passionate volunteer ready to make a difference in emergency response.",
+        years_experience=2,
+        education_level="undergraduate",
+        certifications=["First Aid", "CPR"],
+        profile_completeness_score=0.85,
+    ))
+
+    # 4. Consent events
+    db.add(ConsentEvent(user_id=vol_user.id, scope="analytics",       granted=True, source="guest"))
+    db.add(ConsentEvent(user_id=vol_user.id, scope="personalization", granted=True, source="guest"))
+    db.add(ConsentEvent(user_id=vol_user.id, scope="ai_training",     granted=True, source="guest"))
+
+    # 5. Seed tasks and assignments
+    await _seed_volunteer_demo_data(vol_user.id, ngo.id, db)
+
+    await db.commit()
+
+    token = create_token(vol_user.id, "volunteer", ngo.id, guest_email)
+    return {"token": token, "role": "volunteer", "ngo_id": ngo.id, "ngo_name": ngo.name}
 
 
 @router.post("/ngo/create", response_model=AuthResponse)
